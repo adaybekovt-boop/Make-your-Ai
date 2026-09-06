@@ -39,4 +39,5 @@ jobs:
         run: npm run build
       - name: Audit contract lifecycle references
         if: always()
-        run: grep -RnE 'contracts\.active|active: null|fulfilled:' src/systems src/store || true
+        run: |
+          grep -RnE 'contracts\.active|active: null|fulfilled:' src/systems src/store || true
