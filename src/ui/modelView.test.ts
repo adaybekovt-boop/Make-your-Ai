@@ -3,6 +3,7 @@ import { CHIPS } from '../systems/config'
 import { BASE_MODELS, createCompanyGame, gainsForDomain, purchaseBaseModel, renameModel, scaleProfile } from '../systems/models'
 import { TRAINING_IQ_PER_VOLUME } from '../systems/config'
 import {
+  baseCatalogLabel,
   catalogDisplayNames,
   catalogWeightGb,
   chipDisplayNames,
@@ -40,11 +41,19 @@ describe('player-facing model names', () => {
   it('falls back to the catalog title and stores a custom name without touching ids', () => {
     const started = createCompanyGame('flagship')
     expect(modelDisplayName(started.models[0])).toBe('Terra Zero')
+    expect(baseCatalogLabel(started.models[0])).toBe('Стартовая база')
     const named = renameModel(started, 'model-1', 'Аврора')
     expect(named.ok).toBe(true)
     if (named.ok) {
       expect(named.state.models[0].id).toBe('model-1')
       expect(modelDisplayName(named.state.models[0])).toBe('Аврора')
+      expect(baseCatalogLabel(named.state.models[0])).toBe('Стартовая база')
+    }
+    const portfolio = createCompanyGame('portfolio')
+    const bought = purchaseBaseModel({ ...portfolio, company: { ...portfolio.company, cash: 1_000_000 } }, 'terra-s3', undefined, 'Норд')
+    expect(bought.ok).toBe(true)
+    if (bought.ok) {
+      expect(baseCatalogLabel(bought.state.models[1])).toBe('Aurora S3')
     }
   })
 })

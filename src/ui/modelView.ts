@@ -49,6 +49,11 @@ export function modelDisplayName(model: ManagedModel): string {
   return custom || baseDefinition(model.baseId).name
 }
 
+/** Catalog title for a purchased base; starter custom stays anonymous so it cannot collide with Terra T1. */
+export function baseCatalogLabel(model: ManagedModel): string {
+  return model.baseId === 'custom' ? 'Стартовая база' : baseDefinition(model.baseId).name
+}
+
 export function catalogWeightGb(id: BaseModelId): number {
   return modelWeightSizeGb({
     id: 'model-1',

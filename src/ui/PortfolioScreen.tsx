@@ -1,9 +1,9 @@
-import { baseDefinition, portfolioEconomy } from '../systems/models'
+import { portfolioEconomy } from '../systems/models'
 import { useGameStore } from '../store/gameStore'
 import { Icon } from './Icon'
 import { CompetenceReadout } from './CompetenceReadout'
 import { QuantizePanel } from './QuantizePanel'
-import { allocationPercent, COMPUTE_BUDGET_BPS, modelDisplayName, modelIdleStatus, percentToBps, remainingAllocationBps } from './modelView'
+import { allocationPercent, baseCatalogLabel, COMPUTE_BUDGET_BPS, modelDisplayName, modelIdleStatus, percentToBps, remainingAllocationBps } from './modelView'
 import { percent, quantity } from './format'
 
 export function PortfolioScreen({ onLeave }: { onLeave: () => void }) {
@@ -55,7 +55,7 @@ export function PortfolioScreen({ onLeave }: { onLeave: () => void }) {
             <article className="panel-section portfolio-card" key={model.id} data-testid={`portfolio-card-${model.id}`}>
               <div className="card-heading">
                 <div>
-                  <span className="card-caption">{baseDefinition(model.baseId).name}</span>
+                  <span className="card-caption">{baseCatalogLabel(model)}</span>
                   <h2>{modelDisplayName(model)}</h2>
                 </div>
                 <span className={`status-pill ${idle.idle ? 'warm' : ''}`}>{idle.label}</span>
