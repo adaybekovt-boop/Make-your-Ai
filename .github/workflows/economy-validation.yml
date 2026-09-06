@@ -1,0 +1,31 @@
+name: Economy validation
+
+on:
+  push:
+    branches: [fix/economy-220-daily-boundaries]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Full unit test suite
+        run: npm test
+      - name: Typecheck
+        if: success() || failure()
+        run: npm run typecheck
+      - name: Production build
+        if: success() || failure()
+        run: npm run build
