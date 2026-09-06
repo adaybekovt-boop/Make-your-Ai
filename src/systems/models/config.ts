@@ -7,12 +7,13 @@ export const CATEGORIES: readonly GmiCategory[] = ['reasoning', 'coding', 'safet
 export const DOMAINS: readonly DataDomain[] = ['general', ...CATEGORIES]
 export const GENERAL_GAINS: Readonly<GmiProfile> = { reasoning: 1, coding: 1.1, safety: .9, multimodal: .8 }
 /** Fixed v1 design values. See docs/MODEL_ARCHITECTURE.md; not measurements of real hardware. */
+export const MODEL_NAME_MAX = 48
 export const BASE_MODELS: readonly BaseModelDefinition[] = [
-  { id: 'terra-s3', name: 'Terra S3', parametersB: 3, licensePrice: 18_000, inferenceCost: 1, trainingCost: 1,
+  { id: 'terra-s3', name: 'Aurora S3', parametersB: 3, licensePrice: 18_000, inferenceCost: 1, trainingCost: 1,
     gmi: { reasoning: 18, coding: 20, safety: 16, multimodal: 14 } },
-  { id: 'titan-c7', name: 'Titan C7', parametersB: 7, licensePrice: 60_000, inferenceCost: 1.5, trainingCost: 2,
+  { id: 'titan-c7', name: 'Vertex C7', parametersB: 7, licensePrice: 60_000, inferenceCost: 1.5, trainingCost: 2,
     gmi: { reasoning: 32, coding: 48, safety: 28, multimodal: 24 } },
-  { id: 'helios-m13', name: 'Helios M13', parametersB: 13, licensePrice: 120_000, inferenceCost: 2, trainingCost: 4,
+  { id: 'helios-m13', name: 'Meridian M13', parametersB: 13, licensePrice: 120_000, inferenceCost: 2, trainingCost: 4,
     gmi: { reasoning: 52, coding: 48, safety: 46, multimodal: 58 } },
 ]
 export const emptyProfile = (): GmiProfile => ({ reasoning: 0, coding: 0, safety: 0, multimodal: 0 })

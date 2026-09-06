@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import { BALANCE_VERSION, TRAINING_IQ_PER_VOLUME } from '../systems/config'
-import { BASE_MODELS, CATEGORIES, COMPUTE_BUDGET_BPS, DOMAINS, MAX_PORTFOLIO_MODELS, MODEL_BALANCE_VERSION } from '../systems/models/config'
+import { BASE_MODELS, CATEGORIES, COMPUTE_BUDGET_BPS, DOMAINS, MAX_PORTFOLIO_MODELS, MODEL_BALANCE_VERSION, MODEL_NAME_MAX } from '../systems/models/config'
 import { ledgerOf, migrateSingleModel } from '../systems/models/state'
 import type { BaseModelId, CompanyLedger, CompanyState, DataDomain, GmiProfile, ManagedModel, ModelId } from '../systems/models/types'
 import { DATABASE_NAME, decodeSave, validateGameState } from './saves'
@@ -80,9 +80,14 @@ export function validateCompanyState(value: unknown): CompanyState {
     if (run && (run.total <= 0 || run.remaining > run.total || !near(sum(runGains!), 3.8 * run.total * TRAINING_IQ_PER_VOLUME))) throw new Error('Повреждённый запуск обучения.')
     const rawReceipts = object(source.receipts, 'поступления')
     const receipts = { tokens: number(rawReceipts.tokens, 'token receipts'), subscriptions: number(rawReceipts.subscriptions, 'subscription receipts'), licensing: number(rawReceipts.licensing, 'licensing receipts') }
+    let name: string | undefined
+    if (source.name !== undefined) {
+      if (typeof source.name !== 'string' || !source.name.trim() || source.name.trim().length > MODEL_NAME_MAX) throw new Error('Некорректное имя модели.')
+      name = source.name.trim()
+    }
     return { id: id as ModelId, baseId: baseId as ManagedModel['baseId'], allocationBps, quantization,
       state: { ...validated.model, queue }, users: validated.users, benchmark: validated.benchmark,
-      trainingScores, runGains, receipts, benchmarkQuantization }
+      trainingScores, runGains, receipts, benchmarkQuantization, ...(name ? { name } : {}) }
   })
   if (models.reduce((sum, model) => sum + model.allocationBps, 0) > COMPUTE_BUDGET_BPS) throw new Error('Превышен общий бюджет compute.')
   if (models.some(model => model.state.dirtyHistory) && !root.dataLiability) throw new Error('Потеряна история нелегальных данных.')

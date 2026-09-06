@@ -1,6 +1,6 @@
 import {
   BASE_MODELS, CATEGORIES, COMPUTE_BUDGET_BPS, DOMAINS, effectiveProfile, emptyProfile,
-  gainsForDomain, MAX_PORTFOLIO_MODELS, MODEL_BALANCE_VERSION,
+  gainsForDomain, MAX_PORTFOLIO_MODELS, MODEL_BALANCE_VERSION, MODEL_NAME_MAX,
 } from './config'
 import { applyModel, companyView, getModel, mergeCompany, modelFromLegacy, withModel } from './state'
 import type { BaseModelId, CompanyActionResult, CompanyState, DataDomain, ModelId, QuantizationStep } from './types'
@@ -37,8 +37,24 @@ export function allocateCompute(state: CompanyState, allocations: Readonly<Recor
   if (total > COMPUTE_BUDGET_BPS) return denied('Вычислительный бюджет превышен.')
   return { ok: true, state: { ...state, models: state.models.map(model => ({ ...model, allocationBps: allocations[model.id] })) } }
 }
+function readModelName(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const name = value.trim()
+  if (!name || name.length > MODEL_NAME_MAX) return undefined
+  return name
+}
+
+export function renameModel(state: CompanyState, id: ModelId, name: string): CompanyActionResult {
+  const error = actionAllowed(state); if (error) return denied(error)
+  const trimmed = name.trim()
+  if (!trimmed || trimmed.length > MODEL_NAME_MAX) return denied(`Название модели — от 1 до ${MODEL_NAME_MAX} символов.`)
+  const model = state.models.find(item => item.id === id)
+  if (!model) return denied('Модель не найдена.')
+  return { ok: true, state: withModel(state, { ...model, name: trimmed }) }
+}
+
 export function purchaseBaseModel(state: CompanyState, baseId: BaseModelId,
-  replacement?: { modelId: ModelId; confirm: true }): CompanyActionResult {
+  replacement?: { modelId: ModelId; confirm: true }, displayName?: string): CompanyActionResult {
   const error = actionAllowed(state); if (error) return denied(error)
   const spec = BASE_MODELS.find(model => model.id === baseId)
   if (!spec) return denied('Неизвестная базовая модель.')
@@ -53,12 +69,15 @@ export function purchaseBaseModel(state: CompanyState, baseId: BaseModelId,
     if (old.benchmark.last?.cheated && !old.benchmark.last.exposed) return denied('Нельзя заменить модель с неурегулированным накрученным бенчмарком.')
     if (old.state.run || old.state.queue.length || old.benchmark.testing || state.company.contracts.active) return denied('Сначала завершите обучение, очередь, тестирование и контракт.')
   }
+  if (displayName !== undefined && !readModelName(displayName)) return denied(`Название модели — от 1 до ${MODEL_NAME_MAX} символов.`)
   const id: ModelId = `model-${state.modelSeq + 1}`
   const blank = createInitialGame()
   // Company personality is not cloned along with the audience or learned competence.
   blank.model.personality = state.models[0].state.personality
+  const named = readModelName(displayName)
   const added = { ...modelFromLegacy(blank, id), baseId,
-    allocationBps: state.strategy === 'flagship' ? COMPUTE_BUDGET_BPS : 0 }
+    allocationBps: state.strategy === 'flagship' ? COMPUTE_BUDGET_BPS : 0,
+    ...(named ? { name: named } : {}) }
   return { ok: true, state: { ...state, modelSeq: state.modelSeq + 1,
     dataLiability: state.dataLiability || state.models.some(model => model.state.dirtyHistory),
     company: { ...state.company, cash: state.company.cash - spec.licensePrice, totalCapex: state.company.totalCapex + spec.licensePrice },

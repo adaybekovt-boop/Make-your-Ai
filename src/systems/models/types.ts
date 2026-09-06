@@ -13,6 +13,8 @@ export interface DomainDataLot extends DataLot { domain: DataDomain }
 export interface ManagedModel {
   id: ModelId
   baseId: BaseModelId | 'custom'
+  /** Player-chosen label. Catalog/base titles stay on BaseModelDefinition.name. */
+  name?: string
   allocationBps: number
   quantization: QuantizationStep
   state: Omit<ModelState, 'queue'> & { queue: DomainDataLot[] }

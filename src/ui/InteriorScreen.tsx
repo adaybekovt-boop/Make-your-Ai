@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { CHASSIS, CHIPS } from '../systems/config'
-import { purchasesRestricted } from '../systems/market'
 import { gridSizeFor, locationDefinition, locationEquipment, normalizeLocation, placementError, sameCell, serverOutput } from '../systems/serverGrid'
 import { calculateLocationEconomy } from '../systems/economy'
 import type { AnyLocationId, GridPosition } from '../systems/types'
@@ -10,9 +9,17 @@ import { Icon } from './Icon'
 import { money, percent, quantity } from './format'
 
 export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocationId; onLeave: () => void }) {
-  const game = useGameStore((state) => state.game)
   const ready = useGameStore((state) => state.ready)
-  const raw = [...game.locations, ...game.regionLocations].find((location) => location.id === locationId)
+  const ending = useGameStore((state) => state.company.company.ending)
+  const restricted = useGameStore((state) => {
+    const until = state.company.company.investors.restrictedUntil
+    return until !== null && state.company.company.elapsedGameHours < until
+  })
+  const raw = useGameStore((state) => (
+    state.company.company.locations.find((location) => location.id === locationId)
+    ?? state.company.company.regionLocations.find((location) => location.id === locationId)
+    ?? null
+  ))
   const location = raw ? normalizeLocation(raw) : null
   const definition = locationDefinition(locationId)
   const size = gridSizeFor(locationId)
@@ -24,15 +31,15 @@ export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocatio
   const choose = useCallback((position: GridPosition | null) => {
     setSelected(position)
     const state = useGameStore.getState()
-    const current = [...state.game.locations, ...state.game.regionLocations].find((item) => item.id === locationId)
+    const current = [...state.company.company.locations, ...state.company.company.regionLocations].find((item) => item.id === locationId)
     if (position && !current?.installedServers?.some((item) => sameCell(item.gridPosition, position))) state.openProcurement({ locationId, position })
   }, [locationId])
   const server = location?.installedServers.find((item) => sameCell(item.gridPosition, selected))
   const reserve = location?.installedServers.filter((item) => !item.gridPosition) ?? []
   const occupied = (location?.installedServers.filter((item) => item.gridPosition).length ?? 0) + (location?.rigs?.length ?? 0)
   const equipment = location ? locationEquipment(location) : { demandKw: 0 }
-  const economy = location ? calculateLocationEconomy(location, undefined, game) : null
-  const blocked = !ready || !!game.ending || purchasesRestricted(game)
+  const economy = location ? calculateLocationEconomy(location) : null
+  const blocked = !ready || !!ending || restricted
   const latest = useRef({ location, selected, efficiency: economy?.efficiency ?? 1 })
   latest.current = { location, selected, efficiency: economy?.efficiency ?? 1 }
 
@@ -87,10 +94,10 @@ export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocatio
             <button className="secondary-button wide" onClick={() => scene.current?.focusSelected()}>Приблизить / общий вид</button><span className="status-pill">{server.id} · установлен</span>
             <div className="card-facts"><span>Потребление<strong>{quantity(serverOutput(server).powerKw)} кВт</strong></span><span>Вычисления<strong>{quantity(serverOutput(server).compute)} ед.</strong></span></div>
             <label className="overclock-label" htmlFor="server-clock">Мощность сервера <strong>{percent(server.overclock)}</strong></label>
-            <input id="server-clock" aria-label="Оверклок сервера" type="range" min="50" max="150" step="5" value={Math.round(server.overclock * 100)} disabled={!ready || !!game.ending} onChange={(event) => useGameStore.getState().overclockAt(locationId, server.id, Number(event.target.value) / 100)} />
+            <input id="server-clock" aria-label="Оверклок сервера" type="range" min="50" max="150" step="5" value={Math.round(server.overclock * 100)} disabled={!ready || !!ending} onChange={(event) => useGameStore.getState().overclockAt(locationId, server.id, Number(event.target.value) / 100)} />
             <div className="range-ticks"><span>50%</span><span>100%</span><span>150%</span></div>
             <p className="card-note">Вычисления растут линейно, потребление — по квадрату мощности. Разгон может вызвать троттлинг всей комнаты; установка новых серверов при нехватке энергии запрещена.</p>
-            <button className="secondary-button wide" disabled={!ready || !!game.ending} onClick={() => useGameStore.getState().sellAt(locationId, server.id)}>Продать сервер <span>+{money(Math.round(CHIPS[server.chip].price * CHIPS[server.chip].resaleRatio))}</span></button>
+            <button className="secondary-button wide" disabled={!ready || !!ending} onClick={() => useGameStore.getState().sellAt(locationId, server.id)}>Продать сервер <span>+{money(Math.round(CHIPS[server.chip].price * CHIPS[server.chip].resaleRatio))}</span></button>
             <button className="primary-button wide" disabled={blocked} onClick={() => useGameStore.getState().openProcurement({ locationId, position: selected, serverId: server.id })}>Заказать / смонтировать апгрейд</button>
             <p className="card-note">{CHASSIS[server.chassis ?? 'rack-basic'].name}. При апгрейде оплачивается только новый чип.</p>
           </> : <>
@@ -99,7 +106,7 @@ export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocatio
             {reserve.length > 0 && <><h3>Разместить из резерва</h3>{reserve.map((item) => <button key={item.id} className="secondary-button wide" disabled={blocked || !!placementError(location, item.chip, selected, item.overclock)} onClick={() => useGameStore.getState().deployReserve(locationId, item.id, selected)}>{CHIPS[item.chip].name} · {item.id}<small>Без оплаты</small></button>)}</>}
           </>}
         </>}
-        {reserve.length > 0 && <details className="reserve-details"><summary>Резерв старого сохранения: {reserve.length}</summary><p>Лишние серверы сохранены, но не потребляют энергию и не приносят доход. Выберите пустую ячейку для размещения или продайте резерв.</p>{reserve.map((item) => <button className="secondary-button wide" key={item.id} onClick={() => useGameStore.getState().sellAt(locationId, item.id)} disabled={!ready || !!game.ending}>Продать {item.id}<small>{money(Math.round(CHIPS[item.chip].price * CHIPS[item.chip].resaleRatio))}</small></button>)}</details>}
+        {reserve.length > 0 && <details className="reserve-details"><summary>Резерв старого сохранения: {reserve.length}</summary><p>Лишние серверы сохранены, но не потребляют энергию и не приносят доход. Выберите пустую ячейку для размещения или продайте резерв.</p>{reserve.map((item) => <button className="secondary-button wide" key={item.id} onClick={() => useGameStore.getState().sellAt(locationId, item.id)} disabled={!ready || !!ending}>Продать {item.id}<small>{money(Math.round(CHIPS[item.chip].price * CHIPS[item.chip].resaleRatio))}</small></button>)}</details>}
       </aside>}
     </div>
   </main>

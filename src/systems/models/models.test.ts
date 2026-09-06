@@ -99,6 +99,10 @@ describe('fixed marketplace v1', () => {
     expect(state.models).toHaveLength(4)
     expect(state.models.map(m => m.id)).toEqual(['model-1', 'model-2', 'model-3', 'model-4'])
   })
+  it('keeps display titles off the identity keys used by commands and tests', () => {
+    expect(BASE_MODELS.map(item => item.id)).toEqual(['terra-s3', 'titan-c7', 'helios-m13'])
+    expect(BASE_MODELS.map(item => item.name)).toEqual(['Aurora S3', 'Vertex C7', 'Meridian M13'])
+  })
   it('requires explicit replacement of the single flagship and never refunds or clones its audience', () => {
     const state = migrateSingleModel(single()); state.models[0].users = 100
     expect(purchaseBaseModel(state, 'terra-s3').ok).toBe(false)
