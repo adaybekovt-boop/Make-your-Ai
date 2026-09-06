@@ -291,6 +291,11 @@ export interface LocationEconomy {
 }
 
 export interface CompanyEconomy {
+  /** Actual token + subscription revenue, for reporting only; never an extra payment. */
+  serverRevenuePerHour: number
+  propertyRevenuePerHour: number
+  propertyExpensesPerHour: number
+  salariesPerHour: number
   revenuePerHour: number
   electricityPerHour: number
   maintenancePerHour: number

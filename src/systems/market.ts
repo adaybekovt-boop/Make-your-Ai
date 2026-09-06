@@ -121,7 +121,7 @@ export function effectCapacityMultiplier(state: GameState, now: number): number 
 }
 
 /** How many users the current infrastructure and reputation can hold. */
-export function userCapacity(state: GameState, economy: CompanyEconomy): number {
+export function userCapacity(state: GameState, economy: Pick<CompanyEconomy, 'effectiveCompute'>): number {
   if (economy.effectiveCompute <= 0) return 0
   const demandFactor = 1.6 - state.market.tokenPrice / TOKEN_PRICE_DEFAULT * 0.6
   const ads = state.market.advertising ? 1 + AD_USER_BOOST * adEffectiveness(state) : 1
@@ -225,7 +225,7 @@ export function electricityPerHour(state: GameState, suppliedKw: number, id: Any
 
 // ---------- Acquisition ----------
 export function acquisitionConditionsMet(state: GameState): boolean {
-  return state.model.iq >= 110 && state.totalRevenue >= 1_500_000
+  return state.model.iq >= ACQUISITION_IQ_THRESHOLD && state.totalRevenue >= ACQUISITION_REVENUE_THRESHOLD
 }
 
 export function findLocation(state: GameState, id: AnyLocationId): LocationState | undefined {

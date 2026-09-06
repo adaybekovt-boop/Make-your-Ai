@@ -56,7 +56,7 @@ export function processDailySystems(state: GameState, rng: Rng): GameState {
   next = dailyAdvertisingBilling(next)
   next = dailyLicensingPayout(next)
 
-  next = dailyInvestors(next, economy, rng)
+  next = dailyInvestors(next, calculateCompanyEconomy(next), rng)
   next = maybeOfferAcquisition(next)
 
   return next

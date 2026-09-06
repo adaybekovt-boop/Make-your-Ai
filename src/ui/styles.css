@@ -306,3 +306,7 @@ svg { flex-shrink: 0; vertical-align: middle; }
 .procurement-order small, .procurement-stock small { display: block; opacity: .65; font-size: 12px; }
 .procurement-stock { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 @media (max-width: 560px) { .procurement-stock { align-items: stretch; flex-direction: column; } }
+
+.interior-economy { padding: 10px 24px; background: #f5f7f8; color: #263238; font-size: 13px; border-bottom: 1px solid #dce3e7; }
+.interior-economy summary { cursor: pointer; font-weight: 600; }
+.interior-economy p { max-width: 1100px; line-height: 1.55; }

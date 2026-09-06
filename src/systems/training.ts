@@ -14,7 +14,7 @@ import {
   TRAINING_VOLUME_PER_COMPUTE_HOUR,
 } from './config'
 import { changeReputation } from './reputation'
-import { pushNotice, reduceFine } from './market'
+import { isModelOnline, pushNotice, reduceFine } from './market'
 import type { ActionResult, DataLot, DataQuality, GameState, Rng, TrainingRun } from './types'
 
 export function queueVolume(queue: DataLot[]): number {
@@ -62,13 +62,18 @@ export function startTraining(state: GameState): ActionResult {
   return { ok: true, state: { ...state, model: { ...model, run, queue: [] } } }
 }
 
+/** Shared by training and chronological simulation segmentation. */
+export function trainingRate(state: GameState, effectiveCompute: number): number {
+  if (!isModelOnline(state) || effectiveCompute <= 0) return 0
+  return effectiveCompute * TRAINING_VOLUME_PER_COMPUTE_HOUR * (state.team.overwork ? OVERWORK_TRAINING_BONUS : 1)
+}
+
 /** Consume queue volume against available compute; finish and roll poisoning when done. */
 export function tickTraining(state: GameState, hours: number, effectiveCompute: number, rng: Rng): GameState {
   const { model } = state
   if (!model.run || hours <= 0 || effectiveCompute <= 0) return state
   if (model.offlineUntil !== null && state.elapsedGameHours < model.offlineUntil) return state
-  const overwork = state.team.overwork ? OVERWORK_TRAINING_BONUS : 1
-  const processed = Math.min(model.run.remaining, effectiveCompute * TRAINING_VOLUME_PER_COMPUTE_HOUR * overwork * hours)
+  const processed = Math.min(model.run.remaining, trainingRate(state, effectiveCompute) * hours)
   const remaining = model.run.remaining - processed
   if (remaining > 0) {
     return { ...state, model: { ...model, run: { ...model.run, remaining } } }

@@ -18,8 +18,7 @@ import {
   subscriptionPerHour,
 } from './market'
 import { createCompetitorState } from './competitor'
-import { salariesPerHour } from './team'
-import { tickTraining } from './training'
+import { tickTraining, trainingRate } from './training'
 import { deliverOrders } from './procurement'
 import { processDailySystems } from './daily'
 import type {
@@ -172,59 +171,57 @@ export function unlockRegion(state: GameState, regionId: string): ActionResult {
   }
 }
 
+/** Advance chronologically; never run several daily hooks at the final timestamp. */
 export function advanceSimulation(state: GameState, realSeconds: number, rng: Rng = Math.random): GameState {
-  if (state.paused || !Number.isFinite(realSeconds) || realSeconds < 0) return state
+  if (state.paused || state.ending || !Number.isFinite(realSeconds) || realSeconds <= 0) return state
+  const hours = realSeconds * state.speed * GAME_HOURS_PER_REAL_SECOND
+  const target = state.elapsedGameHours + hours
+  if (!Number.isFinite(target) || target <= state.elapsedGameHours) return state
+  let next = state
+  while (next.elapsedGameHours < target) {
+    const now = next.elapsedGameHours
+    const dayBoundary = (Math.floor((now + 8) / 24) + 1) * 24 - 8
+    // Cooling uses elapsed days, whereas the visible day starts at 08:00.
+    const coolingBoundary = (Math.floor(now / 24) + 1) * 24
+    const economy = calculateCompanyEconomy(next)
+    const rate = trainingRate(next, economy.effectiveCompute)
+    let until = Math.min(target, dayBoundary, coolingBoundary)
+    const splitAt = (time: number | null) => {
+      if (time !== null && Number.isFinite(time) && time > now && time < until) until = time
+    }
+    splitAt(next.model.offlineUntil)
+    for (const order of next.orders) splitAt(order.arriveAt)
+    if (next.model.run && rate > 0) splitAt(now + next.model.run.remaining / rate)
+    const interval = until - now
+    if (!(interval > 0)) throw new RangeError('Simulation time cannot advance at this numeric precision.')
 
-  const elapsedGameHours = realSeconds * state.speed * GAME_HOURS_PER_REAL_SECOND
-  if (elapsedGameHours === 0) return state
-
-  const economy = calculateCompanyEconomy(state)
-  const revenuePerHour = economy.revenuePerHour + tokenRevenuePerHour(state) + subscriptionPerHour(state)
-  const expensesPerHour = economy.expensesPerHour + salariesPerHour(state)
-  const revenue = revenuePerHour * elapsedGameHours
-  const expenses = expensesPerHour * elapsedGameHours
-  let next: GameState = {
-    ...state,
-    cash: state.cash + (revenue - expenses),
-    elapsedGameHours: state.elapsedGameHours + elapsedGameHours,
-    totalRevenue: state.totalRevenue + revenue,
-    totalExpenses: state.totalExpenses + expenses,
+    // serverRevenuePerHour is a reporting field, not a second source of cash.
+    const revenuePerHour = economy.propertyRevenuePerHour + tokenRevenuePerHour(next) + subscriptionPerHour(next)
+    const revenue = revenuePerHour * interval
+    const expenses = economy.expensesPerHour * interval
+    next = {
+      ...next, cash: next.cash + revenue - expenses,
+      totalRevenue: next.totalRevenue + revenue,
+      totalExpenses: next.totalExpenses + expenses,
+    }
+    // Evaluate online/offline at the interval START, not its end.
+    next = tickTraining(next, interval, economy.effectiveCompute, rng)
+    next = { ...next, elapsedGameHours: until }
+    next = deliverOrders(next, rng)
+    if (next.benchmark.testing && next.model.offlineUntil !== null && until >= next.model.offlineUntil) {
+      next = { ...next, benchmark: { ...next.benchmark, testing: false } }
+    }
+    if (until === dayBoundary) next = processDailySystems(next, rng)
   }
-
-  next = tickTraining(next, elapsedGameHours, economy.effectiveCompute, rng)
-  next = deliverOrders(next, rng)
-
-  if (next.benchmark.testing && next.model.offlineUntil !== null && next.elapsedGameHours >= next.model.offlineUntil) {
-    next = { ...next, benchmark: { ...next.benchmark, testing: false } }
-  }
-
-  // A day boundary is the single hook for all once-per-day systems.
-  const dayBefore = Math.floor((state.elapsedGameHours + 8) / 24)
-  const dayAfter = Math.floor((next.elapsedGameHours + 8) / 24)
-  if (dayAfter > dayBefore) {
-    next = processDailySystems(next, rng)
-  }
-
-  const earnedRevenue = state.milestones.earnedRevenue || revenue > 0
+  const earnedRevenue = state.milestones.earnedRevenue || next.totalRevenue > state.totalRevenue
   const experiencedThrottle = state.milestones.experiencedThrottle || [...next.locations, ...next.regionLocations].some((location) => {
     if (!location.owned) return false
     const limit = location.id === 'overseas-west' || location.id === 'overseas-east'
       ? getRegionLocationDefinition(location.id).location.powerLimitKw
       : getLocationDefinition(location.id).powerLimitKw
-    const demand = locationEquipment(location).demandKw
-    return demand > limit
+    return locationEquipment(location).demandKw > limit
   })
-  if (earnedRevenue || experiencedThrottle) {
-    return {
-      ...next,
-      milestones: {
-        ...next.milestones,
-        earnedRevenue,
-        experiencedThrottle,
-      },
-    }
-  }
-  return next
+  return { ...next, milestones: { ...next.milestones, earnedRevenue, experiencedThrottle } }
 }
 
 /** True when the model serves users (no repair, no benchmark downtime). */

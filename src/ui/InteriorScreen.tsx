@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { CHASSIS, CHIPS } from '../systems/config'
 import { purchasesRestricted } from '../systems/market'
 import { gridSizeFor, locationDefinition, locationEquipment, normalizeLocation, placementError, sameCell, serverOutput } from '../systems/serverGrid'
-import { calculateLocationEconomy } from '../systems/economy'
+import { calculateLocationEconomy, calculateServerROI } from '../systems/economy'
 import type { AnyLocationId, GridPosition } from '../systems/types'
 import type { CellProjection, InteriorScene } from '../render/InteriorScene'
 import { useGameStore } from '../store/gameStore'
 import { Icon } from './Icon'
-import { money, percent, quantity } from './format'
+import { money, percent, quantity, signedMoney } from './format'
 
 export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocationId; onLeave: () => void }) {
   const game = useGameStore((state) => state.game)
@@ -31,7 +31,8 @@ export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocatio
   const reserve = location?.installedServers.filter((item) => !item.gridPosition) ?? []
   const occupied = (location?.installedServers.filter((item) => item.gridPosition).length ?? 0) + (location?.rigs?.length ?? 0)
   const equipment = location ? locationEquipment(location) : { demandKw: 0 }
-  const economy = location ? calculateLocationEconomy(location) : null
+  const economy = location ? calculateLocationEconomy(location, undefined, game) : null
+  const roi = location ? calculateServerROI(location, game) : null
   const blocked = !ready || !!game.ending || purchasesRestricted(game)
   const latest = useRef({ location, selected, efficiency: economy?.efficiency ?? 1 })
   latest.current = { location, selected, efficiency: economy?.efficiency ?? 1 }
@@ -66,6 +67,12 @@ export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocatio
 
   return <main className="interior-screen" aria-label={`Интерьер: ${definition.name}`}>
     <header className="interior-toolbar"><button className="secondary-button" onClick={onLeave}><Icon name="arrow" size={16} style={{ transform: 'rotate(180deg)' }} />Назад к карте</button><div className="interior-title"><span>Серверная комната · вид сверху</span><h1>{definition.name}</h1></div><div className={`occupancy ${occupied === capacity ? 'text-warm' : ''}`} data-testid="grid-occupancy">Занято <strong>{occupied} / {capacity}</strong> ячеек<small>{size.rows} × {size.cols} · жёсткий лимит площади</small></div><div className="interior-energy"><Icon name="bolt" size={17} /><span>{quantity(equipment.demandKw)} / {definition.powerLimitKw} кВт<small>{economy && economy.efficiency < 1 ? `Троттлинг · ${percent(economy.efficiency)}` : 'Лимит энергии'}</small></span></div></header>
+    <details className="interior-economy">
+      <summary>Экономика комнаты · {signedMoney(economy?.profitPerHour ?? 0)}/ч</summary>
+      <p data-testid="interior-profit">Выручка от аудитории: {money(economy?.revenuePerHour ?? 0)}/ч. Расходы помещения: {money(economy?.expensesPerHour ?? 0)}/ч.</p>
+      <p>Доля пользовательской выручки пропорциональна вычислениям этой комнаты. Арендный доход башен и зарплаты учитываются отдельно на уровне компании.</p>
+      {roi && <p data-testid="roi-forecast">Прогноз дополнительного Terra T1 после разгона аудитории: {signedMoney(roi.incrementalProfitPerHour)}/ч. Немедленно: {signedMoney(roi.immediateProfitPerHour)}/ч, без новых пользователей. Официальный комплект со стойкой: {money(roi.capitalCost)}. Условная окупаемость при устойчивой аудитории: {roi.paybackHours === null ? 'не окупается' : `${quantity(roi.paybackHours)} ч`}. Время доставки и убытки разгона в этот срок не включены. {!roi.installable && 'Сейчас для установки не хватает свободной ячейки или мощности сети.'}</p>}
+    </details>
     <div className="interior-workspace">
       <section className="interior-floor" aria-label="Пол с сеткой размещения">
         <div className="interior-canvas" ref={host} />

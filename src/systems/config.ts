@@ -4,7 +4,6 @@ export const BALANCE_VERSION = 1
 export const STARTING_CASH = 12_000
 export const GAME_HOURS_PER_REAL_SECOND = 1 / 60
 export const ELECTRICITY_PRICE_PER_KWH = 18
-export const REVENUE_PER_COMPUTE_HOUR = 960
 export const MAX_SERVERS_PER_LOCATION = 100
 
 export const SERVER: ServerDefinition = {
@@ -206,7 +205,7 @@ export const REPUTATION_MIN = 0
 export const REPUTATION_MAX = 100
 
 // ---------- Пользователи, токены, реклама ----------
-export const USERS_PER_COMPUTE = 40
+export const USERS_PER_COMPUTE = 220
 export const USER_GROWTH_PER_DAY = 0.5
 export const TOKEN_REVENUE_PER_USER_HOUR = 1.2
 export const SUBSCRIPTION_PER_USER_HOUR = 0.4
