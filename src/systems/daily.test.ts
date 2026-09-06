@@ -20,7 +20,6 @@ describe('the daily hook', () => {
     game = advanceSimulation(game, 16 / GAME_HOURS_PER_REAL_SECOND, flat)
     expect(game.users).toBeGreaterThan(0)
     const usersAfterFirstMidnight = game.users
-
     const sameDay = advanceSimulation(game, 60, flat)
     expect(sameDay.users).toBe(usersAfterFirstMidnight)
   })
@@ -41,12 +40,15 @@ describe('the daily hook', () => {
 })
 
 describe('hourly accounting with the new flows', () => {
-  it('compute revenue alone at the start: users are zero, so no token income', () => {
+  it('zero users mean zero revenue, while the installed server still incurs all costs', () => {
     let game = result(buyLocation(createInitialGame(), 'garage'))
     game = result(deliveredServer(game, 'garage'))
     const before = game.cash
     game = advanceSimulation(game, 60, flat)
-    const economyProfit = 960 - 36 - 90 - 80
+    const economyProfit = -36 - 90 - 80
     expect(game.cash).toBeCloseTo(before + economyProfit, 6)
+    expect(game.users).toBe(0)
+    expect(game.totalRevenue).toBe(0)
+    expect(game.totalExpenses).toBe(206)
   })
 })
