@@ -1,0 +1,49 @@
+name: Model portfolio systems
+on:
+  push:
+    branches: [feat/model-portfolio-systems]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Full regression suite
+        run: |
+          mkdir -p artifacts/portfolio
+          set -o pipefail
+          npm test 2>&1 | tee artifacts/portfolio/tests.log
+      - name: Typecheck
+        if: success() || failure()
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee artifacts/portfolio/typecheck.log
+      - name: Production build
+        if: success() || failure()
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee artifacts/portfolio/build.log
+      - name: Record tested revision
+        if: always()
+        run: |
+          mkdir -p artifacts/portfolio
+          git rev-parse HEAD > artifacts/portfolio/source-commit.txt
+          cp docs/MODEL_ARCHITECTURE.md artifacts/portfolio/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portfolio-${{ github.sha }}
+          path: artifacts/portfolio/
+          retention-days: 14
