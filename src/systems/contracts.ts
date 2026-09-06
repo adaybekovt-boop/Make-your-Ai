@@ -32,9 +32,31 @@ export function nextOfferDay(state: GameState, rng: Rng): number {
   return gameDay(state) + intervalDays(rng)
 }
 
+/**
+ * Release the slot only after the data obligation is settled AND all time windows end.
+ * Calendar deadlines are inclusive, matching benchmark.cheatBlockedByContract.
+ * No payout/refund/reputation change occurs here. Untrained official contracts keep
+ * waiting: the existing design specifies the next training, not a training deadline.
+ */
+export function closeCompletedContract(state: GameState): GameState {
+  const active = state.contracts.active
+  if (!active || state.ending) return state
+  if (active.requiresOfficialData && active.fulfilled === null) return state
+  const day = gameDay(state)
+  if (active.noCheatUntilDay !== null && day <= active.noCheatUntilDay) return state
+  if (active.dirtyUntilDay !== null && day <= active.dirtyUntilDay) return state
+  // Old saves can have a risk timer which ends later than the calendar deadline.
+  if (active.kind === 'grey' && state.market.dirtyRiskUntil !== null &&
+      state.elapsedGameHours < state.market.dirtyRiskUntil) return state
+  return pushNotice(
+    { ...state, contracts: { ...state.contracts, active: null } },
+    `Контракт «${active.clientName}» закрыт. Компания может принимать новые предложения.`,
+  )
+}
+
 /** One offer at a time: the same deal in an official and a grey variant. */
 export function maybeGenerateOffer(state: GameState, rng: Rng): GameState {
-  if (state.contracts.pending || state.contracts.active) return state
+  if (state.ending || state.contracts.pending || state.contracts.active) return state
   if (gameDay(state) < state.contracts.nextOfferDay) return state
 
   const clientName = FICTIONAL_CLIENTS[Math.floor(rng() * FICTIONAL_CLIENTS.length)]
@@ -77,6 +99,8 @@ export function acceptContract(state: GameState, variant: ContractKind): ActionR
   const pending = state.contracts.pending
   if (!pending) return { ok: false, error: 'Активного предложения нет.' }
   if (state.ending) return { ok: false, error: 'Компания уже продана.' }
+  if (state.contracts.active) return { ok: false, error: 'Сначала завершите действующий контракт.' }
+  if (gameDay(state) > pending.expiresDay) return { ok: false, error: 'Срок предложения истёк.' }
   if (!offerVariantAvailable(state, variant)) {
     return { ok: false, error: 'Репутация слишком низка: клиент работает только по официальным правилам.' }
   }
@@ -122,7 +146,12 @@ export function declineContract(state: GameState): GameState {
 export function activeContractLabel(state: GameState): string | null {
   const active = state.contracts.active
   if (!active) return null
-  if (active.fulfilled === true) return `Контракт «${active.clientName}» выполнен.`
-  if (active.fulfilled === false) return `Контракт «${active.clientName}» провален.`
+  if (active.requiresOfficialData && active.fulfilled !== null) {
+    const outcome = active.fulfilled ? 'Обязательство по обучению выполнено.' : 'Обязательство по обучению нарушено.'
+    const restriction = active.noCheatUntilDay !== null && gameDay(state) <= active.noCheatUntilDay
+      ? ` Без манипуляций с бенчмарками до конца дня ${active.noCheatUntilDay}.`
+      : ' Ожидает закрытия на суточной границе.'
+    return `Контракт «${active.clientName}»: ${outcome}${restriction}`
+  }
   return `Контракт с «${active.clientName}» в силе.`
 }

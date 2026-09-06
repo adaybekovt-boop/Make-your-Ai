@@ -25,7 +25,7 @@ jobs:
         run: npm ci
       - name: Full unit test suite
         run: npm test
-      - name: Reference pacing acceptance
+      - name: Measure primary 1x pacing (not release approval)
         run: node scripts/check-balance-evidence.mjs
       - name: Typecheck
         if: success() || failure()
@@ -50,6 +50,9 @@ jobs:
             sleep 1
           done
           node scripts/economy-browser-smoke.mjs
+      - name: Acceptance gate - office and taxes remain blocked
+        if: success()
+        run: node scripts/check-balance-evidence.mjs --enforce
       - name: Record tested revision
         if: always()
         run: |

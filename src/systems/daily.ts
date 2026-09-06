@@ -1,5 +1,5 @@
 import { dailyAmbientGmi, dailyCompetitorStep } from './competitor'
-import { clearExpiredOffer, maybeGenerateOffer } from './contracts'
+import { clearExpiredOffer, closeCompletedContract, maybeGenerateOffer } from './contracts'
 import { dailyExposureRoll } from './benchmark'
 import {
   dailyComplaintRoll,
@@ -39,6 +39,7 @@ export function processDailySystems(state: GameState, rng: Rng): GameState {
   next = dailyCompetitorStep(next, rng)
   next = dailyAmbientGmi(next, rng)
 
+  next = closeCompletedContract(next)
   next = clearExpiredOffer(next)
   next = maybeGenerateOffer(next, rng)
 

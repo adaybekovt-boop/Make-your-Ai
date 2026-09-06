@@ -92,7 +92,8 @@ function completeTraining(state: GameState, run: TrainingRun, rng: Rng): GameSta
     },
   }
   const contract = next.contracts.active
-  if (contract && contract.requiresOfficialData) {
+  // The obligation concerns one training run, not every subsequent batch.
+  if (contract?.requiresOfficialData && contract.fulfilled === null) {
     if (run.usedUnofficial) {
       next = changeReputation(next, -CONTRACT_BREACH_REPUTATION)
       next = {
