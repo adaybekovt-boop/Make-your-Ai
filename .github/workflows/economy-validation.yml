@@ -23,6 +23,8 @@ jobs:
         run: npm ci
       - name: Full unit test suite
         run: npm test
+      - name: Reference pacing acceptance
+        run: node scripts/check-balance-evidence.mjs
       - name: Typecheck
         if: success() || failure()
         run: npm run typecheck
@@ -46,6 +48,12 @@ jobs:
             sleep 1
           done
           node scripts/economy-browser-smoke.mjs
+      - name: Package reproducible workspace for offline verification
+        if: always()
+        run: |
+          mkdir -p artifacts/economy-validation
+          git rev-parse HEAD > artifacts/economy-validation/source-commit.txt
+          tar --exclude='*.ttf' --exclude='*.otf' --exclude='*.woff' --exclude='*.woff2' --exclude='*.eot' -czf artifacts/economy-validation/workspace.tar.gz src public scripts node_modules package.json package-lock.json tsconfig.json vite.config.ts index.html
       - name: Upload evidence for this exact revision
         if: always()
         uses: actions/upload-artifact@v4
@@ -53,4 +61,4 @@ jobs:
           name: economy-validation-${{ github.sha }}
           path: artifacts/economy-validation/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 
 const output = 'artifacts/economy-validation'
 await mkdir(output, { recursive: true })
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
 const errors = []
 page.on('pageerror', error => errors.push(error.message))
@@ -14,8 +14,7 @@ const read = () => page.evaluate(async () => {
   const state = useGameStore.getState().game
   return { cash: state.cash, users: state.users, hour: state.elapsedGameHours, revenue: state.totalRevenue, economy: calculateCompanyEconomy(state), orders: state.orders.length, installed: state.locations[0].installedServers?.length ?? 0 }
 })
-// Advance actual simulation time without waiting for real hours. No revenue, state,
-// procurement or renderer implementations are mocked, and no debug API is shipped.
+// Actual simulation, accelerated only in time; no mocked business dependencies.
 const advance = hours => page.evaluate(async hours => {
   const { useGameStore } = await import('/src/store/gameStore.ts')
   const { advanceSimulation } = await import('/src/systems/simulation.ts')
@@ -28,13 +27,13 @@ async function capture(name) { await page.screenshot({ path: `${output}/${name}.
 try {
   await page.goto('http://127.0.0.1:5173', { waitUntil: 'networkidle' })
   await page.waitForFunction(async () => (await import('/src/store/gameStore.ts')).useGameStore.getState().ready)
-  // Pause at exactly the initial state before the first user action.
   await page.evaluate(async () => {
     const { useGameStore } = await import('/src/store/gameStore.ts')
     const { createInitialGame } = await import('/src/systems/simulation.ts')
     useGameStore.setState({ game: { ...createInitialGame(), paused: true } })
   })
   await page.getByRole('button', { name: 'Сделать ассистентом', exact: true }).click()
+  await page.getByRole('button', { name: 'Мой технопарк', exact: true }).click()
   await page.getByTestId('building-garage').waitFor({ state: 'visible', timeout: 60000 })
   await page.getByRole('button', { name: 'Открыть здание «Гараж»', exact: true }).click()
   await page.getByRole('button', { name: /Купить локацию/ }).click()
@@ -59,8 +58,6 @@ try {
   assert.equal((await read()).users, 0)
   assert.equal((await read()).economy.profitPerHour, -206)
   await page.keyboard.press('Escape')
-  // The generic modal may only close through its explicit close control.
-  if (await page.getByRole('button', { name: 'Закрыть окно', exact: true }).count()) await page.getByRole('button', { name: 'Закрыть окно', exact: true }).click()
   await page.locator('.interior-economy summary').click()
   assert.match(await page.getByTestId('interior-profit').innerText(), /Выручка от аудитории/)
   assert.match(await page.getByTestId('roi-forecast').innerText(), /после разгона аудитории/)
@@ -82,7 +79,7 @@ try {
   assert.ok(await page.getByText('Аренда башен — доход', { exact: true }).isVisible())
   await capture('03-company-revenue-breakdown')
   assert.deepEqual(errors, [])
-  const report = { status: 'passed', testedCommit: process.env.GITHUB_SHA, method: 'real UI actions + real simulation time advancement through existing modules; deterministic benign RNG', manualHumanPlaytest: false, screenshots: shots, ramped, runtimeErrors: errors }
+  const report = { status: 'passed', testedCommit: process.env.GITHUB_SHA, method: 'real UI actions + real simulation time advancement through existing modules; deterministic benign RNG', humanPlaytest: false, screenshots: shots, ramped, runtimeErrors: errors }
   await writeFile(`${output}/browser-report.json`, JSON.stringify(report, null, 2))
   console.log('BROWSER_ECONOMY_RESULT', JSON.stringify(report))
 } catch (error) {
