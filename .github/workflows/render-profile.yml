@@ -1,0 +1,58 @@
+name: Render baseline and measurements
+on:
+  push:
+    branches: ['perf/render-*']
+permissions:
+  contents: read
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RENDER_PROFILE_ROOT: ${{ github.workspace }}/artifacts/render-profile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Existing full tests
+        run: |
+          mkdir -p "$RENDER_PROFILE_ROOT/evidence"
+          set -o pipefail
+          npm test 2>&1 | tee "$RENDER_PROFILE_ROOT/evidence/tests.log"
+      - name: Typecheck and uninstrumented production build
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee "$RENDER_PROFILE_ROOT/evidence/typecheck.log"
+          npm run build 2>&1 | tee "$RENDER_PROFILE_ROOT/evidence/build.log"
+      - name: Install independent measurement tooling
+        run: |
+          python -m venv /tmp/render-measurement-env
+          /tmp/render-measurement-env/bin/pip install playwright==1.57.0
+          /tmp/render-measurement-env/bin/playwright install --with-deps chromium
+      - name: Measure baseline without changing game sources
+        run: |
+          node src/render/perf/build.mjs "$GITHUB_WORKSPACE" baseline
+          python -m http.server 8765 --bind 127.0.0.1 --directory "$RENDER_PROFILE_ROOT/builds" > "$RENDER_PROFILE_ROOT/evidence/server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          /tmp/render-measurement-env/bin/python src/render/perf/profile.py baseline 3
+      - name: Record revisions and immutable system tree
+        if: always()
+        run: |
+          mkdir -p "$RENDER_PROFILE_ROOT/evidence"
+          git rev-parse HEAD > "$RENDER_PROFILE_ROOT/evidence/source-commit.txt"
+          git rev-parse HEAD:src/systems > "$RENDER_PROFILE_ROOT/evidence/systems-tree.txt"
+          git diff --exit-code -- src/systems public
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: render-profile-${{ github.sha }}
+          path: artifacts/render-profile/evidence/
+          retention-days: 14
+          if-no-files-found: error
