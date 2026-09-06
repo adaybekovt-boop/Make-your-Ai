@@ -3,6 +3,7 @@ import { openDB } from 'idb'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DATABASE_NAME, decodeSave, loadGame, makeSaveEnvelope, parseSaveText, saveGame, validateGameState } from './saves'
 import { createInitialGame } from '../systems/simulation'
+import { BALANCE_VERSION } from '../systems/config'
 
 beforeEach(async () => {
   const db = await openDB(DATABASE_NAME, 1, { upgrade(db) { db.createObjectStore('saves') } })
@@ -14,7 +15,7 @@ describe('versioned save schema', () => {
   it('roundtrips a typed envelope without derived balance rates', () => {
     const game = createInitialGame()
     expect(decodeSave(JSON.parse(JSON.stringify(makeSaveEnvelope(game)))).game).toEqual(game)
-    expect(makeSaveEnvelope(game)).toMatchObject({ schemaVersion: 2, balanceVersion: 1 })
+    expect(makeSaveEnvelope(game)).toMatchObject({ schemaVersion: 2, balanceVersion: BALANCE_VERSION })
     expect(makeSaveEnvelope(game).game).not.toBe(game)
   })
 
@@ -30,6 +31,20 @@ describe('versioned save schema', () => {
     const saved = makeSaveEnvelope(createInitialGame())
     saved.balanceVersion = 42
     expect(decodeSave(saved).balanceVersion).toBe(42)
+  })
+
+  it('keeps the balance-v1 audience, cash and owned rental property when re-saving under the new balance', () => {
+    const game = createInitialGame()
+    game.cash = 1234
+    game.users = 123
+    game.cityProperties = ['meridian']
+    game.locations[0] = { id: 'garage', owned: true, servers: 1 }
+    const saved = { ...makeSaveEnvelope(game), balanceVersion: 1 }
+    const restored = decodeSave(saved).game
+    expect(restored.cash).toBe(1234)
+    expect(restored.users).toBe(123)
+    expect(restored.cityProperties).toEqual(['meridian'])
+    expect(makeSaveEnvelope(restored).balanceVersion).toBe(BALANCE_VERSION)
   })
 
   it('rejects unsupported future saves and malformed metadata', () => {
