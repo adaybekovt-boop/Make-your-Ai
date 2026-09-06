@@ -4,7 +4,7 @@ import { Icon } from './Icon'
 import { CompetenceReadout } from './CompetenceReadout'
 import { QuantizePanel } from './QuantizePanel'
 import { allocationPercent, COMPUTE_BUDGET_BPS, modelDisplayName, modelIdleStatus, percentToBps, remainingAllocationBps } from './modelView'
-import { money, percent } from './format'
+import { percent, quantity } from './format'
 
 export function PortfolioScreen({ onLeave }: { onLeave: () => void }) {
   const company = useGameStore((state) => state.company)
@@ -84,8 +84,8 @@ export function PortfolioScreen({ onLeave }: { onLeave: () => void }) {
               </label>
               <CompetenceReadout model={model} compact />
               <div className="card-facts">
-                <span>Аудитория<strong>{money(model.users)}</strong></span>
-                <span>Ёмкость<strong>{money(rates?.capacity ?? 0)}</strong></span>
+                <span>Аудитория<strong>{quantity(model.users)}</strong></span>
+                <span>Ёмкость<strong>{quantity(rates?.capacity ?? 0)}</strong></span>
               </div>
               <QuantizePanel model={model} />
             </article>
