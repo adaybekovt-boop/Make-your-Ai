@@ -11,6 +11,7 @@ import {
   flagshipReplaceBlockers,
   modelDisplayName,
   percentToBps,
+  remainingAllocationBps,
 } from './modelView'
 
 describe('catalog display names', () => {
@@ -59,6 +60,19 @@ describe('UI forecasts call the systems layer', () => {
   it('converts percents to basis points the allocator understands', () => {
     expect(percentToBps(100)).toBe(10_000)
     expect(percentToBps(25)).toBe(2_500)
+  })
+
+  it('clamps leftover quota so two models cannot exceed 100%', () => {
+    const started = createCompanyGame('portfolio')
+    const state = { ...started, company: { ...started.company, cash: 1_000_000 } }
+    expect(remainingAllocationBps(state, state.models[0].id)).toBe(10_000)
+    state.models[0].allocationBps = 7_500
+    const second = purchaseBaseModel(state, 'terra-s3', undefined, 'Норд')
+    expect(second.ok).toBe(true)
+    if (second.ok) {
+      expect(remainingAllocationBps(second.state, second.state.models[1].id)).toBe(2_500)
+      expect(remainingAllocationBps(second.state, second.state.models[0].id)).toBe(10_000)
+    }
   })
 })
 

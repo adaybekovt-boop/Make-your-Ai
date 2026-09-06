@@ -53,7 +53,7 @@ export function TestingScreen({ onLeave }: { onLeave: () => void }) {
         {model.state.iq <= 0 && !Object.values(effectiveProfile(model)).some((value) => value > 0) && <span className="status-pill warm">Сначала обучите {name}</span>}
         {testing && <span className="status-pill">Тест идёт: {name} отключена от пользователей</span>}
         {stale && <span className="status-pill warm">Прошлый тест устарел после смены квантования</span>}
-        {!testing && last?.exposed && <span className="status-pill warm">Результат прошлозит жульничеством</span>}
+        {!testing && last?.exposed && <span className="status-pill warm">Результат запятнан жульничеством</span>}
       </div>
       <button className="secondary-button" onClick={onLeave}><Icon name="map" size={16} />К карте</button>
     </header>

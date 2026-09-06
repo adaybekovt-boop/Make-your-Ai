@@ -6,7 +6,7 @@ import { companyLearnedIQ, companyUsers, companyView, getModel, portfolioEconomy
 import { useGameStore } from '../store/gameStore'
 import { useGameRuntime } from '../store/useGameRuntime'
 import { Icon } from './Icon'
-import { gameClock, money, signedMoney } from './format'
+import { gameClock, money, quantity, signedMoney } from './format'
 import { MapView, type MapControls } from './MapView'
 import { Modal } from './Modal'
 import { TrainingScreen } from './TrainingScreen'
@@ -148,7 +148,7 @@ export function App() {
       <div className="economy-summary">
         <div><span>Всего заработано</span><strong>{money(state.company.company.totalRevenue)}</strong></div>
         <div><span>Заработанный IQ на момент продажи</span><strong>{Math.round(companyLearnedIQ(state.company))}</strong></div>
-        <div><span>Пользователей</span><strong>{money(companyUsers(state.company))}</strong></div>
+        <div><span>Пользователей</span><strong>{quantity(companyUsers(state.company))}</strong></div>
         <div><span>Репутация</span><strong>{Math.round(state.company.company.reputation)}</strong></div>
       </div>
       <button className="primary-button" onClick={() => void state.reset()}>Начать новую историю</button>

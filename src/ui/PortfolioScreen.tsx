@@ -1,4 +1,4 @@
-import { portfolioEconomy } from '../systems/models'
+import { baseDefinition, portfolioEconomy } from '../systems/models'
 import { useGameStore } from '../store/gameStore'
 import { Icon } from './Icon'
 import { CompetenceReadout } from './CompetenceReadout'
@@ -55,7 +55,7 @@ export function PortfolioScreen({ onLeave }: { onLeave: () => void }) {
             <article className="panel-section portfolio-card" key={model.id} data-testid={`portfolio-card-${model.id}`}>
               <div className="card-heading">
                 <div>
-                  <span className="card-caption">{model.baseId}</span>
+                  <span className="card-caption">{baseDefinition(model.baseId).name}</span>
                   <h2>{modelDisplayName(model)}</h2>
                 </div>
                 <span className={`status-pill ${idle.idle ? 'warm' : ''}`}>{idle.label}</span>
