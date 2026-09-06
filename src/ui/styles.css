@@ -326,6 +326,7 @@ svg { flex-shrink: 0; vertical-align: middle; }
 .catalog-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:var(--panel)}
 .catalog-table{width:100%;border-collapse:collapse;font-size:12px}
 .catalog-table th,.catalog-table td{padding:12px 10px;border-bottom:1px solid #314348;text-align:left;vertical-align:top}
+.catalog-table td:first-child{min-width:132px;white-space:nowrap}
 .catalog-table th{color:var(--muted);font-weight:550;font-size:10px;letter-spacing:.04em;text-transform:uppercase}
 .catalog-table small{display:block;color:var(--muted);margin-top:4px}
 .portfolio-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
