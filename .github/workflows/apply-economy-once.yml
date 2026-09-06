@@ -1,0 +1,43 @@
+name: Apply audited economy source migration
+on:
+  push:
+    branches: [fix/economy-220-daily-boundaries]
+    paths:
+      - '.github/apply-economy-fix.py'
+      - '.github/workflows/apply-economy-once.yml'
+permissions:
+  contents: write
+jobs:
+  apply-and-validate:
+    if: github.ref == 'refs/heads/fix/economy-220-daily-boundaries'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Apply all related source changes in one commit
+        run: |
+          if ! grep -q 'export const USERS_PER_COMPUTE = 220' src/systems/config.ts; then
+            python3 .github/apply-economy-fix.py
+            git add src
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: use audience revenue, preserve property rent and process every daily boundary'
+            git push origin HEAD:fix/economy-220-daily-boundaries
+          fi
+          echo "TESTED_SOURCE_COMMIT=$(git rev-parse HEAD)"
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Full unit test suite
+        run: npm test
+      - name: Typecheck
+        if: success() || failure()
+        run: npm run typecheck
+      - name: Production build
+        if: success() || failure()
+        run: npm run build
+      - name: Audit remaining revenue and ROI call sites
+        if: always()
+        run: |
+          grep -RnE 'REVENUE_PER_COMPUTE_HOUR|calculateLocationEconomy\(|calculateServerROI\(|revenuePerHour \+' src || true
