@@ -29,3 +29,28 @@ jobs:
       - name: Production build
         if: success() || failure()
         run: npm run build
+      - name: Install browser test tooling without modifying the application lockfile
+        if: success()
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.0
+          npx playwright install --with-deps chromium
+      - name: Browser procurement and revenue smoke
+        if: success()
+        run: |
+          mkdir -p artifacts/economy-validation
+          npm run dev > artifacts/economy-validation/vite.log 2>&1 &
+          VITE_PID=$!
+          trap 'kill "$VITE_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:5173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/economy-browser-smoke.mjs
+      - name: Upload evidence for this exact revision
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: economy-validation-${{ github.sha }}
+          path: artifacts/economy-validation/
+          if-no-files-found: warn
+          retention-days: 14
