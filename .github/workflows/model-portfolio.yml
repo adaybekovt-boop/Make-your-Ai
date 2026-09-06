@@ -1,0 +1,41 @@
+name: Model portfolio systems
+on:
+  push:
+    branches: [feat/model-portfolio-systems]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+        if: success() || failure()
+      - run: npm run build
+        if: success() || failure()
+      - name: Baseline workspace
+        if: always()
+        run: |
+          mkdir -p artifacts/portfolio fixed-economy
+          git archive 01c2a1286839361ba8057bb1c7d251794595336d src scripts | tar -x -C fixed-economy
+          git rev-parse HEAD > artifacts/portfolio/source-commit.txt
+          git ls-tree -r HEAD > artifacts/portfolio/source-tree.txt
+          tar --exclude='*.ttf' --exclude='*.otf' --exclude='*.woff' --exclude='*.woff2' --exclude='*.eot' -czf artifacts/portfolio/workspace.tar.gz src public scripts fixed-economy node_modules package.json package-lock.json tsconfig.json vite.config.ts index.html README.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portfolio-${{ github.sha }}
+          path: artifacts/portfolio/
+          retention-days: 7
