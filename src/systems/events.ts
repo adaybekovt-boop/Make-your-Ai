@@ -64,8 +64,8 @@ export function dailyComplaintRoll(state: GameState, rng: Rng): GameState {
 }
 
 /** Prompt injection is an ops risk: a safety role cuts the odds, data quality does not. */
-export function dailyPromptInjectionRoll(state: GameState, rng: Rng): GameState {
-  if (state.model.iq <= 0) return state
+export function dailyPromptInjectionRoll(state: GameState, rng: Rng, hasCompetence = state.model.iq > 0): GameState {
+  if (!hasCompetence) return state
   const chance = PROMPT_INJECTION_DAILY_CHANCE * Math.pow(PROMPT_INJECTION_SAFETY_FACTOR, safetyLevel(state))
   if (rng() >= chance) return state
   const cost = reduceFine(state, PROMPT_INJECTION_COST)

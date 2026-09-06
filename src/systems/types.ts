@@ -293,6 +293,10 @@ export interface LocationEconomy {
 }
 
 export interface CompanyEconomy {
+  serverRevenuePerHour: number
+  propertyRevenuePerHour: number
+  propertyExpensesPerHour: number
+  salariesPerHour: number
   revenuePerHour: number
   electricityPerHour: number
   maintenancePerHour: number

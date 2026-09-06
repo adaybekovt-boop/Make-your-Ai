@@ -50,12 +50,12 @@ describe('purchases, delivery and selling', () => {
 })
 
 describe('simulation accounting', () => {
-  it('one real minute earns one hour of operating profit after mounting', () => {
+  it('one real minute bills one hour of costs before an audience exists', () => {
     const game = runningGarage(), next = advanceSimulation(game, 60, () => .99)
     expect(next.elapsedGameHours).toBe(game.elapsedGameHours + 1)
-    expect(next.totalRevenue).toBe(960)
+    expect(next.totalRevenue).toBe(0)
     expect(next.totalExpenses).toBe(206)
-    expect(next.cash).toBe(game.cash + 754)
+    expect(next.cash).toBe(game.cash - 206)
     ledger(next)
   })
   it('delivers via simulation time, waits while paused and never auto-installs', () => {

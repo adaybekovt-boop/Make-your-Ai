@@ -1,8 +1,8 @@
-import { rareCarArrival } from './rareTraffic'
+import { advanceCompanySimulation } from './models/simulation'
+import { adaptSingleModel, legacyFlagshipView } from './models/state'
 import {
   CHIPS,
   CONTRACT_INTERVAL_MIN_DAYS,
-  GAME_HOURS_PER_REAL_SECOND,
   getLocationDefinition,
   getRegion,
   getRegionLocationDefinition,
@@ -10,19 +10,11 @@ import {
   STARTING_CASH,
   TOKEN_PRICE_DEFAULT,
 } from './config'
-import { calculateCompanyEconomy } from './economy'
-import { locationEquipment } from './serverGrid'
 import {
   isModelOnline,
   purchasesRestricted,
-  tokenRevenuePerHour,
-  subscriptionPerHour,
 } from './market'
 import { createCompetitorState } from './competitor'
-import { salariesPerHour } from './team'
-import { tickTraining } from './training'
-import { deliverOrders } from './procurement'
-import { processDailySystems } from './daily'
 import type {
   ActionResult,
   AnyLocationId,
@@ -173,62 +165,10 @@ export function unlockRegion(state: GameState, regionId: string): ActionResult {
   }
 }
 
+/** Legacy UI adapter. All hourly cash posting now lives in the single V3 company clock. */
 export function advanceSimulation(state: GameState, realSeconds: number, rng: Rng = Math.random): GameState {
-  if (state.paused || !Number.isFinite(realSeconds) || realSeconds < 0) return state
-
-  const elapsedGameHours = realSeconds * state.speed * GAME_HOURS_PER_REAL_SECOND
-  if (elapsedGameHours === 0) return state
-
-  const economy = calculateCompanyEconomy(state)
-  const revenuePerHour = economy.revenuePerHour + tokenRevenuePerHour(state) + subscriptionPerHour(state)
-  const expensesPerHour = economy.expensesPerHour + salariesPerHour(state)
-  const revenue = revenuePerHour * elapsedGameHours
-  const expenses = expensesPerHour * elapsedGameHours
-  let next: GameState = {
-    ...state,
-    cash: state.cash + (revenue - expenses),
-    elapsedGameHours: state.elapsedGameHours + elapsedGameHours,
-    totalRevenue: state.totalRevenue + revenue,
-    totalExpenses: state.totalExpenses + expenses,
-  }
-
-  const arrival = rareCarArrival(state.elapsedGameHours, next.elapsedGameHours, rng)
-  if (arrival !== undefined) next.rareCarUntil = arrival
-
-  next = tickTraining(next, elapsedGameHours, economy.effectiveCompute, rng)
-  next = deliverOrders(next, rng)
-
-  if (next.benchmark.testing && next.model.offlineUntil !== null && next.elapsedGameHours >= next.model.offlineUntil) {
-    next = { ...next, benchmark: { ...next.benchmark, testing: false } }
-  }
-
-  // A day boundary is the single hook for all once-per-day systems.
-  const dayBefore = Math.floor((state.elapsedGameHours + 8) / 24)
-  const dayAfter = Math.floor((next.elapsedGameHours + 8) / 24)
-  if (dayAfter > dayBefore) {
-    next = processDailySystems(next, rng)
-  }
-
-  const earnedRevenue = state.milestones.earnedRevenue || revenue > 0
-  const experiencedThrottle = state.milestones.experiencedThrottle || [...next.locations, ...next.regionLocations].some((location) => {
-    if (!location.owned) return false
-    const limit = location.id === 'overseas-west' || location.id === 'overseas-east'
-      ? getRegionLocationDefinition(location.id).location.powerLimitKw
-      : getLocationDefinition(location.id).powerLimitKw
-    const demand = locationEquipment(location).demandKw
-    return demand > limit
-  })
-  if (earnedRevenue || experiencedThrottle) {
-    return {
-      ...next,
-      milestones: {
-        ...next.milestones,
-        earnedRevenue,
-        experiencedThrottle,
-      },
-    }
-  }
-  return next
+  if (state.paused || state.ending || !Number.isFinite(realSeconds) || realSeconds <= 0) return state
+  return legacyFlagshipView(advanceCompanySimulation(adaptSingleModel(state), realSeconds, rng))
 }
 
 /** True when the model serves users (no repair, no benchmark downtime). */

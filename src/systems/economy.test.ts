@@ -4,6 +4,7 @@ import { createInitialGame } from './simulation'
 import type { LocationState } from './types'
 
 const garage = (servers = 0): LocationState => ({ id: 'garage', owned: true, servers })
+const withGarage = (location: LocationState) => { const state = createInitialGame(); state.locations[0] = location; return state }
 
 describe('local power balance', () => {
   it.each([
@@ -42,19 +43,19 @@ describe('location economics', () => {
     expect(calculateLocationEconomy(garage()).profitPerHour).toBe(-80)
   })
 
-  it('one garage GPU earns 754 net per game hour', () => {
+  it('one garage GPU with no audience costs 206 per game hour', () => {
     expect(calculateLocationEconomy(garage(1))).toEqual({
       demandKw: 2, suppliedKw: 2, efficiency: 1, effectiveCompute: 1,
-      revenuePerHour: 960, electricityPerHour: 36, maintenancePerHour: 90,
-      rentPerHour: 80, expensesPerHour: 206, profitPerHour: 754,
+      revenuePerHour: 0, electricityPerHour: 36, maintenancePerHour: 90,
+      rentPerHour: 80, expensesPerHour: 206, profitPerHour: -206,
     })
   })
 
   it('two garage GPUs throttle to 75% and pay electricity only for 3 kW', () => {
     expect(calculateLocationEconomy(garage(2))).toEqual({
       demandKw: 4, suppliedKw: 3, efficiency: 0.75, effectiveCompute: 1.5,
-      revenuePerHour: 1440, electricityPerHour: 54, maintenancePerHour: 180,
-      rentPerHour: 80, expensesPerHour: 314, profitPerHour: 1126,
+      revenuePerHour: 0, electricityPerHour: 54, maintenancePerHour: 180,
+      rentPerHour: 80, expensesPerHour: 314, profitPerHour: -314,
     })
   })
 
@@ -72,7 +73,7 @@ describe('location economics', () => {
     game.locations[1] = { id: 'workshop', owned: true, servers: 1 }
     const result = calculateCompanyEconomy(game)
     expect(result).toMatchObject({ capacityKw: 11, demandKw: 6, suppliedKw: 5, effectiveCompute: 2.5, serverCount: 3, ownedCount: 2 })
-    expect(result.profitPerHour).toBe(1126 + 674)
+    expect(result.profitPerHour).toBe(-314 - 286)
     expect(result.revenuePerHour - result.expensesPerHour).toBe(result.profitPerHour)
   })
 
@@ -83,15 +84,15 @@ describe('location economics', () => {
 })
 
 describe('marginal server ROI', () => {
-  it('first server excludes already committed rent and location CAPEX', () => {
-    expect(calculateServerROI(garage())).toEqual({ incrementalProfitPerHour: 834, paybackHours: 2000 / 834 })
+  it('first server forecast excludes committed rent, but includes the official rack/chip kit', () => {
+    expect(calculateServerROI(garage(), withGarage(garage()))).toMatchObject({ forecast: 'steady-state', capitalCost: 4800, immediateProfitPerHour: -126, incrementalProfitPerHour: 138, paybackHours: 4800 / 138 })
   })
 
   it('second server accounts for throttling all existing equipment', () => {
-    expect(calculateServerROI(garage(1))).toEqual({ incrementalProfitPerHour: 372, paybackHours: 2000 / 372 })
+    expect(calculateServerROI(garage(1), withGarage(garage(1)))).toMatchObject({ installable: false, immediateProfitPerHour: -108, incrementalProfitPerHour: 24, paybackHours: 4800 / 24 })
   })
 
   it('unprofitable third GPU never has a misleading positive payback', () => {
-    expect(calculateServerROI(garage(2))).toEqual({ incrementalProfitPerHour: -90, paybackHours: null })
+    expect(calculateServerROI(garage(2), withGarage(garage(2)))).toMatchObject({ incrementalProfitPerHour: -90, paybackHours: null })
   })
 })

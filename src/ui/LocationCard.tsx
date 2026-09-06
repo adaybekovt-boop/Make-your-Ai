@@ -10,7 +10,7 @@ import { money, percent } from './format'
 export function LocationCard({ selection, anchor, projection, onClose, onBuilding }: { selection: MapSelection; anchor: ScreenPoint; projection: MapProjection; onClose: () => void; onBuilding: () => void }) {
   const game = useGameStore((state) => state.game); const ready = useGameStore((state) => state.ready)
   const location = game.locations.find((item) => item.id === selection.id)!
-  const definition = getLocationDefinition(selection.id as LocationId); const economy = calculateLocationEconomy(location)
+  const definition = getLocationDefinition(selection.id as LocationId); const economy = calculateLocationEconomy(location, undefined, game)
   const element = useRef<HTMLDivElement>(null); const [size, setSize] = useState({ width: 272, height: 300 })
   useLayoutEffect(() => { if (!element.current) return; const node = element.current; const observer = new ResizeObserver(() => setSize({ width: node.offsetWidth, height: node.offsetHeight })); observer.observe(node); return () => observer.disconnect() }, [])
   const point = placeCard(anchor, size, projection, projection.buildings.filter((item) => item.visible).map((item) => item.bounds))

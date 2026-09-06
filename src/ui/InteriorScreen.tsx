@@ -31,7 +31,7 @@ export function InteriorScreen({ locationId, onLeave }: { locationId: AnyLocatio
   const reserve = location?.installedServers.filter((item) => !item.gridPosition) ?? []
   const occupied = (location?.installedServers.filter((item) => item.gridPosition).length ?? 0) + (location?.rigs?.length ?? 0)
   const equipment = location ? locationEquipment(location) : { demandKw: 0 }
-  const economy = location ? calculateLocationEconomy(location) : null
+  const economy = location ? calculateLocationEconomy(location, undefined, game) : null
   const blocked = !ready || !!game.ending || purchasesRestricted(game)
   const latest = useRef({ location, selected, efficiency: economy?.efficiency ?? 1 })
   latest.current = { location, selected, efficiency: economy?.efficiency ?? 1 }

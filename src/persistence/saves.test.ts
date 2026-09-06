@@ -3,6 +3,7 @@ import { openDB } from 'idb'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { DATABASE_NAME, decodeSave, loadGame, makeSaveEnvelope, parseSaveText, saveGame, validateGameState } from './saves'
 import { createInitialGame } from '../systems/simulation'
+import { BALANCE_VERSION } from '../systems/config'
 
 beforeEach(async () => {
   const db = await openDB(DATABASE_NAME, 1, { upgrade(db) { db.createObjectStore('saves') } })
@@ -14,7 +15,7 @@ describe('versioned save schema', () => {
   it('roundtrips a typed envelope without derived balance rates', () => {
     const game = createInitialGame()
     expect(decodeSave(JSON.parse(JSON.stringify(makeSaveEnvelope(game)))).game).toEqual(game)
-    expect(makeSaveEnvelope(game)).toMatchObject({ schemaVersion: 2, balanceVersion: 1 })
+    expect(makeSaveEnvelope(game)).toMatchObject({ schemaVersion: 2, balanceVersion: BALANCE_VERSION })
     expect(makeSaveEnvelope(game).game).not.toBe(game)
   })
 
