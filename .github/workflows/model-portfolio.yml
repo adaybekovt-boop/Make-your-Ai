@@ -1,36 +1,23 @@
-name: Apply and validate portfolio systems
+name: Model portfolio systems
 on:
   push:
     branches: [feat/model-portfolio-systems]
+  pull_request:
+    branches: [main]
 permissions:
-  contents: write
+  contents: read
 jobs:
-  apply:
-    if: github.ref == 'refs/heads/feat/model-portfolio-systems'
+  validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - name: Apply checksum-verified locally tested patch
-        run: |
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          git diff --exit-code ed1ac44007320052859aca921b103e22b981011c -- src public package.json package-lock.json tsconfig.json vite.config.ts index.html
-          python3 - <<'PY'
-          import base64, hashlib, lzma, pathlib, subprocess
-          root = pathlib.Path('.github/portfolio-upload')
-          encoded = ''.join((root / f'part{i}.b64').read_text() for i in range(4))
-          patch = lzma.decompress(base64.b64decode(encoded, validate=True))
-          assert hashlib.sha256(patch).hexdigest() == '24cfe992db3213c784cb0ad524fedc0dc9d37596cd6873ff36aa7349faabded6'
-          pathlib.Path('/tmp/portfolio.patch').write_bytes(patch)
-          subprocess.run(['git','apply','--check','/tmp/portfolio.patch'],check=True)
-          subprocess.run(['git','apply','/tmp/portfolio.patch'],check=True)
-          PY
       - name: Install locked dependencies
         run: npm ci
       - name: Full regression suite
@@ -39,23 +26,24 @@ jobs:
           set -o pipefail
           npm test 2>&1 | tee artifacts/portfolio/tests.log
       - name: Typecheck
+        if: success() || failure()
         run: |
           set -o pipefail
           npm run typecheck 2>&1 | tee artifacts/portfolio/typecheck.log
       - name: Production build
+        if: success() || failure()
         run: |
           set -o pipefail
           npm run build 2>&1 | tee artifacts/portfolio/build.log
-      - name: Commit only verified sources to the isolated branch
+      - name: Record tested revision
+        if: always()
         run: |
-          git add src docs
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: canonical model portfolio systems, save migration and fixed v1 balance'
-          git push origin HEAD:feat/model-portfolio-systems
+          mkdir -p artifacts/portfolio
           git rev-parse HEAD > artifacts/portfolio/source-commit.txt
           cp docs/MODEL_ARCHITECTURE.md artifacts/portfolio/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: portfolio-apply-${{ github.sha }}
+          name: portfolio-${{ github.sha }}
           path: artifacts/portfolio/
           retention-days: 14
