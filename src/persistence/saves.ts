@@ -300,6 +300,7 @@ function validateOrders(value: unknown, locations: LocationState[], orderSeq: nu
 
 export function validateGameState(value: unknown): GameState {
   const game = record(value, 'компания')
+  const officeOwned = game.officeOwned === undefined ? undefined : bool(game.officeOwned, 'владение офисом')
   const cityProperties: CityTowerId[] = []
   if (game.cityProperties !== undefined) {
     if (!Array.isArray(game.cityProperties)) throw new Error('Некорректный список городской недвижимости.')
@@ -349,6 +350,8 @@ export function validateGameState(value: unknown): GameState {
   const orderSeq = finite(game.orderSeq, 'счётчик заказов')
   if (!Number.isSafeInteger(orderSeq)) throw new Error('Некорректный счётчик заказов.')
   return {
+    ...(officeOwned === undefined ? {} : { officeOwned }),
+    ...(game.rareCarUntil === undefined ? {} : { rareCarUntil: finite(game.rareCarUntil, '������ ����������') }),
     ...(game.cityProperties !== undefined ? { cityProperties } : {}),
     cash: finite(game.cash, 'капитал', -Number.MAX_SAFE_INTEGER),
     elapsedGameHours: finite(game.elapsedGameHours, 'время'),
@@ -406,6 +409,14 @@ export function decodeSave(value: unknown): SaveEnvelope {
   }
   if (envelope.schemaVersion === 0) {
     game = { ...game, totalCapex: game.totalCapex ?? 0, milestones: game.milestones ?? initial.milestones }
+  }
+  // Add only the two newly introduced sites to otherwise complete legacy saves.
+  if (Array.isArray(game.locations) && game.locations.length === 5) {
+    const legacyIds = ['garage', 'workshop', 'technopark', 'server-hall', 'campus']
+    const ids = game.locations.map(value => record(value, 'локация').id)
+    if (legacyIds.every(id => ids.includes(id)) && new Set(ids).size === 5) {
+      game = { ...game, locations: [...game.locations, { id: 'dc-north', owned: false, servers: 0 }, { id: 'dc-south', owned: false, servers: 0 }] }
+    }
   }
   const validated = validateGameState(game)
   if (envelope.schemaVersion !== SAVE_VERSION) {

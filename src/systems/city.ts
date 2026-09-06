@@ -38,3 +38,12 @@ export function buyCityTower(state: GameState, id: CityTowerId): ActionResult {
     state: { ...state, cash: state.cash - tower.price, totalCapex: state.totalCapex + tower.price, cityProperties: [...(state.cityProperties ?? []), id] },
   }
 }
+
+export const OFFICE_PRICE = 35_000
+export function buyOffice(state: GameState): ActionResult {
+  if (state.officeOwned) return { ok: false, error: 'Офис уже принадлежит компании.' }
+  if (state.ending) return { ok: false, error: 'Компания уже продана.' }
+  if (state.investors.restrictedUntil !== null && state.elapsedGameHours < state.investors.restrictedUntil) return { ok: false, error: 'Крупные покупки временно ограничены.' }
+  if (state.cash < OFFICE_PRICE) return { ok: false, error: 'Недостаточно средств для покупки офиса.' }
+  return { ok: true, state: { ...state, officeOwned: true, cash: state.cash - OFFICE_PRICE, totalCapex: state.totalCapex + OFFICE_PRICE } }
+}

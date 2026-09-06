@@ -1,43 +1,33 @@
 {
-  "source": "artifacts/racks/rack_spec.py",
-  "builders": [
-    "artifacts/racks/build_racks.py (Blender)",
-    "artifacts/racks/build_racks_gltf.py (standalone)"
-  ],
-  "units": "metres, +Y up, origin at centre of base",
-  "footprint": "fits inside a 1.0 x 1.0 grid cell",
+  "source": "tools/build_equipment.py",
+  "units": "metres, +Y up, full proportions",
   "chipMaterial": "chip_indicator",
-  "chipColors": {
-    "Terra": "#2ed1b8",
-    "Titan": "#4d8dff",
-    "Helios": "#ffb028",
-    "Zenith": "#c46bff"
-  },
-  "triangleBudget": 500,
+  "triangleBudget": 2200,
   "models": [
     {
       "file": "rack-basic.glb",
-      "node": "rack_basic",
-      "triangles": 48,
-      "height": 0.87,
-      "width": 0.6,
-      "bytes": 5024
+      "triangles": 932,
+      "height": 1.06,
+      "width": 0.82,
+      "bytes": 18668,
+      "source": "artifacts/racks/v2/rack-basic.blend"
     },
     {
       "file": "rack-cooled.glb",
-      "node": "rack_cooled",
-      "triangles": 136,
-      "height": 1.21,
-      "width": 0.72,
-      "bytes": 9724
+      "triangles": 1548,
+      "height": 1.24,
+      "width": 0.82,
+      "bytes": 23888,
+      "source": "artifacts/racks/v2/rack-cooled.blend"
     },
     {
       "file": "rack-enterprise.glb",
-      "node": "rack_enterprise",
-      "triangles": 140,
-      "height": 1.745,
-      "width": 0.86,
-      "bytes": 9648
+      "triangles": 1928,
+      "height": 1.38,
+      "width": 0.82,
+      "bytes": 27044,
+      "source": "artifacts/racks/v2/rack-enterprise.blend"
     }
-  ]
+  ],
+  "compression": "Draco, authored in Blender; tools/compress_visual_assets.py"
 }

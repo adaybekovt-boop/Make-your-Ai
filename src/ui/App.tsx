@@ -1,3 +1,4 @@
+import { OFFICE_PRICE } from '../systems/city'
 import { ProcurementModal } from './ProcurementModal'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ELECTRICITY_PRICE_PER_KWH, SERVER, STARTING_CASH } from '../systems/config'
@@ -10,11 +11,12 @@ import { MapView, type MapControls } from './MapView'
 import { Modal } from './Modal'
 import { TrainingScreen } from './TrainingScreen'
 import { TestingScreen } from './TestingScreen'
+import { OfficeScreen } from './OfficeScreen'
 import { InteriorScreen } from './InteriorScreen'
 import type { LocationId } from '../systems/types'
 
-type Dialog = 'help' | 'settings' | 'economy' | 'reset' | 'restore' | null
-type Screen = 'map' | 'training' | 'testing' | 'interior'
+type Dialog = 'help' | 'settings' | 'economy' | 'reset' | 'restore' | 'office-purchase' | null
+type Screen = 'map' | 'training' | 'testing' | 'interior' | 'office'
 
 export function App() {
   useGameRuntime()
@@ -36,6 +38,17 @@ export function App() {
     return () => window.clearTimeout(timer)
   }, [state.notice, state.dismissNotice])
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || !state.ready) return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('reviewFunds') !== '100000000') return
+    url.searchParams.delete('reviewFunds')
+    window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+    const current = useGameStore.getState()
+    useGameStore.setState({ game: { ...current.game, cash: Math.max(current.game.cash, 100_000_000) } })
+    if (current.storageEnabled) void useGameStore.getState().persist(true)
+  }, [state.ready])
+
   const personality = state.game.model.personality
   const contract = state.game.contracts.pending
   const ending = state.game.ending
@@ -48,7 +61,7 @@ export function App() {
         <button className="global-metric profit-button" aria-label="Открыть экономику компании" onClick={() => openDialog('economy')}><span>Прибыль в час</span><strong className={economy.profitPerHour < 0 ? 'text-warm' : 'text-green'} data-testid="profit">{signedMoney(economy.profitPerHour)}</strong></button>
       </div>
       <div className="time-controls" aria-label="Управление временем"><span className="game-clock">День {clock.day}<b>{clock.time}</b></span><button className={`icon-button ${state.game.paused ? 'active' : ''}`} aria-label={state.game.paused ? 'Продолжить симуляцию' : 'Приостановить симуляцию'} onClick={state.togglePause} disabled={!state.ready}><Icon name={state.game.paused ? 'play' : 'pause'} size={15} /></button>{([1, 3] as const).map((speed) => <button className={`speed-button ${state.game.speed === speed ? 'active' : ''}`} key={speed} aria-label={`Скорость ${speed}×`} aria-pressed={state.game.speed === speed} onClick={() => state.setSpeed(speed)} disabled={!state.ready}>{speed}×</button>)}</div>
-      <div className="global-actions">
+      <div className="global-actions"><button className="secondary-button" aria-label="Открыть офис HQ" onClick={() => state.game.officeOwned ? goScreen('office') : openDialog('office-purchase')} disabled={!state.ready}>HQ</button>
         <button className={`icon-button ${screen === 'training' ? 'active' : ''}`} aria-label="Обучение модели" title="Обучение модели" data-testid="open-training" onClick={() => goScreen('training')} disabled={!state.ready}><Icon name="model" size={20} /></button>
         <button className={`icon-button ${screen === 'testing' ? 'active' : ''}`} aria-label="Тестирование и рынок" title="Тестирование и рынок" data-testid="open-testing" onClick={() => goScreen('testing')} disabled={!state.ready}><Icon name="flask" size={20} /></button>
         <button className={`icon-button save-button ${!state.storageEnabled ? 'text-warm' : ''}`} aria-label="Сохранить компанию" title={state.saving ? 'Сохраняем…' : state.savedAt ? 'Сохранить ещё раз · автосохранение включено' : 'Сохранить компанию'} onClick={() => void state.persist(true)} disabled={!state.ready || state.saving}><Icon name="save" /><i className={state.storageEnabled ? 'green-dot' : 'warm-dot'} /></button>
@@ -57,11 +70,13 @@ export function App() {
       </div>
     </header>
 
+    {screen === 'office' && state.game.officeOwned && <OfficeScreen onLeave={leaveInterior} />}
     {screen === 'map' && <MapView ref={map} onEnterInterior={enterInterior} />}
     {screen === 'interior' && <InteriorScreen key={interiorId} locationId={interiorId} onLeave={leaveInterior} />}
     {screen === 'training' && <TrainingScreen onLeave={() => goScreen('map')} />}
     {screen === 'testing' && <TestingScreen onLeave={() => goScreen('map')} />}
 
+    {dialog === 'office-purchase' && <Modal title="Головной офис" onClose={() => setDialog(null)}><span className="card-caption">Недвижимость компании</span><p className="card-description">Собственный ресепшен, переговорная и рабочее место руководителя. Офис покупается отдельно от серверных площадок.</p><div className="office-purchase-visual"><span>NEURON</span><strong>HEADQUARTERS</strong><small>Ресепшен · переговорная · кабинет</small></div><button className="primary-button wide" disabled={!state.ready || state.game.cash < OFFICE_PRICE || !!state.game.ending} onClick={() => { state.purchaseOffice(); if (useGameStore.getState().game.officeOwned) { setDialog(null); goScreen('office') } }}>Купить офис<span>{money(OFFICE_PRICE)}</span></button></Modal>}
     {state.notice && <div className={`toast ${state.notice.kind}`} role={state.notice.kind === 'error' ? 'alert' : 'status'}><Icon name={state.notice.kind === 'error' ? 'help' : 'check'} size={17} /><span>{state.notice.message.replaceAll('GPU', 'Gpu')}</span><button className="icon-button" aria-label="Скрыть уведомление" onClick={state.dismissNotice}><Icon name="close" size={15} /></button></div>}
 
     {personality === null && !ending && <Modal title="Какой будет ваша модель?" onClose={() => useGameStore.getState().setPersonality('friendly')} data-testid="personality-modal">

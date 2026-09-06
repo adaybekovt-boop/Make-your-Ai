@@ -1,4 +1,4 @@
-export type LocationId = 'garage' | 'workshop' | 'technopark' | 'server-hall' | 'campus'
+export type LocationId = 'garage' | 'workshop' | 'technopark' | 'server-hall' | 'campus' | 'dc-north' | 'dc-south'
 export type RegionLocationId = 'overseas-west' | 'overseas-east'
 export type AnyLocationId = LocationId | RegionLocationId
 export type GameSpeed = 1 | 3
@@ -247,6 +247,8 @@ export interface InvestorsState {
 }
 
 export interface GameState {
+  rareCarUntil?: number
+  officeOwned?: boolean
   cash: number
   cityProperties?: import('./city').CityTowerId[]
   orders: EquipmentOrder[]

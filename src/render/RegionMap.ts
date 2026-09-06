@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { loadCityBackdrop, type CityManifest, type CityManifestEntry } from './CityBackdrop'
 import { StreetLife } from './StreetLife'
+import { configureMapPanning } from './mapNavigation'
 import { calculateLocationEconomy } from '../systems/economy'
 import type { GameState } from '../systems/types'
 import type { BuildingProjection, MapObjectId, MapProjection } from './mapPresentation'
@@ -30,6 +31,7 @@ export class RegionMap {
   private readonly sun = new THREE.DirectionalLight(0xffecd5, 2.5)
   private readonly navigation = document.createElement('div')
   private readonly cityLights = new Set<THREE.MeshStandardMaterial>()
+  private readonly streetLamps: THREE.PointLight[] = []
   private manifest: CityManifest | null = null
   private life: StreetLife | null = null
   private observer: ResizeObserver | null = null
@@ -57,6 +59,7 @@ export class RegionMap {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.1
     this.scene.background = new THREE.Color(0x394a4d)
+    this.scene.fog = new THREE.Fog(0x394a4d, 17500, 34000)
     this.scene.add(this.sky, this.sun, this.sun.target)
     this.sun.position.set(-5000, 11000, 4000)
     this.sun.target.position.set(400, 0, 0)
@@ -79,7 +82,7 @@ export class RegionMap {
     this.controls.enableRotate = false
     this.controls.enableDamping = true
     this.controls.dampingFactor = .18
-    this.controls.screenSpacePanning = true
+    configureMapPanning(this.controls)
     this.controls.zoomToCursor = true
     this.controls.minZoom = .65
     this.controls.maxZoom = 22
@@ -92,6 +95,7 @@ export class RegionMap {
     for (const [label, action] of [
       ['Весь город', () => this.resetView()],
       ['Мой технопарк', () => this.focusLocations()],
+      ['Дата-центры', () => this.focusArea(new THREE.Vector3(3500, 0, 0), 2.7)],
       ['Магазины чипов', () => this.focusArea(new THREE.Vector3(0, 0, 0), 5)],
       ['Деловой район', () => this.focusArea(new THREE.Vector3(250, 0, -1200), 4)],
     ] as const) {
@@ -111,6 +115,10 @@ export class RegionMap {
       const { city, manifest } = await loadCityBackdrop()
       instance.manifest = manifest
       instance.scene.add(city)
+      for (const position of manifest.streetLamps ?? []) {
+        const lamp = new THREE.PointLight(0xffb65a, 0, 230, 1.5)
+        lamp.position.set(...position); instance.streetLamps.push(lamp); instance.scene.add(lamp)
+      }
       city.updateMatrixWorld(true)
       instance.prepareNodes(city, manifest)
       city.traverse((object) => {
@@ -127,6 +135,7 @@ export class RegionMap {
       instance.observer = new ResizeObserver(() => instance.resize())
       instance.observer.observe(host)
       instance.resize()
+      instance.focusLocations()
       // Render the first frame even if the host temporarily suppresses animation callbacks.
       cancelAnimationFrame(instance.frame)
       instance.frame = 0
@@ -160,16 +169,19 @@ export class RegionMap {
   update(game: GameState, selectedId: MapObjectId | null) {
     if (this.disposed) return
     this.animate = !game.paused && !game.ending
+    this.life?.setRareCar((game.rareCarUntil ?? 0) > game.elapsedGameHours)
     const hour = (game.elapsedGameHours + 8) % 24
     const daylight = THREE.MathUtils.smoothstep(hour, 5, 8) * (1 - THREE.MathUtils.smoothstep(hour, 17, 20))
     const signature = daylight.toFixed(2)
     if (signature !== this.lightSignature) {
       this.lightSignature = signature
-      this.sky.intensity = THREE.MathUtils.lerp(1.2, 2.2, daylight)
-      this.sun.intensity = THREE.MathUtils.lerp(.7, 2.5, daylight)
+      this.sky.intensity = THREE.MathUtils.lerp(.65, 1.65, daylight)
+      this.sun.intensity = THREE.MathUtils.lerp(.35, 2.8, daylight)
       this.sun.color.set(0x87a6ca).lerp(new THREE.Color(0xffecd5), daylight)
       ;(this.scene.background as THREE.Color).set(0x172731).lerp(new THREE.Color(0x394a4d), daylight)
-      this.cityLights.forEach((material) => { material.emissiveIntensity = (1 - daylight) * .8 + .04 })
+      this.cityLights.forEach((material) => { material.emissiveIntensity = (1 - daylight) * 2.1 + .04 })
+      this.streetLamps.forEach(lamp => { lamp.intensity = (1 - daylight) * 1400 })
+      ;(this.scene.fog as THREE.Fog).color.copy(this.scene.background as THREE.Color)
       this.host.dataset.lighting = daylight > .5 ? 'day' : 'night'
       this.dirty = true
     }
@@ -192,8 +204,6 @@ export class RegionMap {
       }
       this.dirty = true
     }
-    this.dirty = true
-    this.projectDirty = true
     this.schedule()
   }
 
@@ -208,7 +218,7 @@ export class RegionMap {
     this.onCameraChange()
   }
 
-  resetView() { this.focusArea(new THREE.Vector3(500, 0, 0), 1) }
+  resetView() { this.focusArea(new THREE.Vector3(500, 0, 0), 1.22) }
   focusLocations() { this.focusArea(new THREE.Vector3(...(this.manifest?.campusCenter ?? [3550, 0, 0])), 8) }
   private focusArea(center: THREE.Vector3, zoom: number) {
     if (this.disposed) return
@@ -242,7 +252,8 @@ export class RegionMap {
     this.life?.setDetail(this.camera.zoom)
     if (moving) this.life?.update(delta)
     if (this.dirty || moving) {
-      const clamped = this.controls.target.clone().clamp(new THREE.Vector3(-4800, -2000, -4000), new THREE.Vector3(6000, 2000, 4000))
+      const bounds = this.manifest?.bounds ?? [-3900, -3700, 4900, 3300]
+      const clamped = this.controls.target.clone().clamp(new THREE.Vector3(bounds[0], 0, bounds[1]), new THREE.Vector3(bounds[2], 0, bounds[3]))
       this.camera.position.add(clamped.clone().sub(this.controls.target)); this.controls.target.copy(clamped)
       this.renderer.render(this.scene, this.camera)
       this.host.dataset.drawCalls = String(this.renderer.info.render.calls)
@@ -273,7 +284,7 @@ export class RegionMap {
       const minX = Math.min(...corners.map((p) => p.x)), maxX = Math.max(...corners.map((p) => p.x))
       const minY = Math.min(...corners.map((p) => p.y)), maxY = Math.max(...corners.map((p) => p.y))
       const roof = project(node.roof)
-      return { id: node.entry.id, roof, label: project(node.anchor), warning: { x: minX - 8, y: minY - 22 }, bounds: { x: minX, y: minY, width: maxX - minX, height: maxY - minY }, visible: (node.entry.kind !== 'location' || this.camera.zoom >= 3.5) && roof.x > 0 && roof.x < width && roof.y > 0 && roof.y < height }
+      return { id: node.entry.id, roof, label: project(node.anchor), warning: { x: minX - 8, y: minY - 22 }, bounds: { x: minX, y: minY, width: maxX - minX, height: maxY - minY }, visible: (node.entry.kind !== 'location' || this.camera.zoom >= 1.8) && roof.x > 0 && roof.x < width && roof.y > 0 && roof.y < height }
     })
     const next = { width, height, buildings }
     const signature = JSON.stringify(next)

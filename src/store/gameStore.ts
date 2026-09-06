@@ -3,7 +3,7 @@ import type { AnyLocationId, GridPosition, ChassisId } from '../systems/types'
 import { create } from 'zustand'
 import { BALANCE_VERSION, TOKEN_PRICE_MAX, TOKEN_PRICE_MIN } from '../systems/config'
 import { advanceSimulation, buyLocation, createInitialGame, unlockRegion } from '../systems/simulation'
-import { buyCityTower, type CityTowerId } from '../systems/city'
+import { buyOffice, buyCityTower, type CityTowerId } from '../systems/city'
 import { acceptAcquisition } from '../systems/market'
 import { mountChassisFromInventory, mountChipFromInventory, orderEquipment, orderServerKit, type OrderRequest } from '../systems/procurement'
 import { changeReputation } from '../systems/reputation'
@@ -42,6 +42,7 @@ interface GameStore {
   sellAt: (id: AnyLocationId, serverId: string) => void
   overclockAt: (id: AnyLocationId, serverId: string, value: number) => void
   deployReserve: (id: AnyLocationId, serverId: string, position: GridPosition) => void
+  purchaseOffice: () => void
   purchaseCityTower: (id: CityTowerId) => void
   purchaseLocation: (id: LocationId | RegionLocationId) => void
   openProcurement: (request: { locationId: AnyLocationId; position: GridPosition | null; serverId?: string | null }) => void
@@ -140,6 +141,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     overclockAt: (id, serverId, value) => apply(setServerOverclock(get().game, id, serverId, value)),
     deployReserve: (id, serverId, position) => apply(deployReserveServer(get().game, id, serverId, position), 'Сервер из резерва размещён в комнате.'),
     selectLocation: (selectedId) => set({ selectedId }),
+    purchaseOffice: () => apply(buyOffice(get().game), 'Головной офис куплен. Теперь можно войти.'),
     purchaseCityTower: (id) => apply(buyCityTower(get().game, id), 'Здание куплено. Арендаторы приносят доход каждый игровой час.'),
     purchaseLocation: (id) => apply(buyLocation(get().game, id), `Локация приобретена. Закажите шасси в серверной комнате.`),
     openProcurement: (request) => set({ procurement: request }),

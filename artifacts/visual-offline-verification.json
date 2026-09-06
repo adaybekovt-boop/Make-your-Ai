@@ -1,0 +1,145 @@
+{
+  "assets": [
+    {
+      "file": "garage.glb",
+      "triangles": 4241,
+      "bytes": 56220,
+      "reimport": true
+    },
+    {
+      "file": "workshop.glb",
+      "triangles": 4136,
+      "bytes": 48980,
+      "reimport": true
+    },
+    {
+      "file": "technopark.glb",
+      "triangles": 5684,
+      "bytes": 60296,
+      "reimport": true
+    },
+    {
+      "file": "server-hall.glb",
+      "triangles": 5555,
+      "bytes": 48280,
+      "reimport": true
+    },
+    {
+      "file": "campus.glb",
+      "triangles": 8132,
+      "bytes": 62976,
+      "reimport": true
+    },
+    {
+      "file": "hq.glb",
+      "triangles": 2464,
+      "bytes": 44740,
+      "reimport": true
+    },
+    {
+      "file": "dc-north.glb",
+      "triangles": 8414,
+      "bytes": 60776,
+      "reimport": true
+    },
+    {
+      "file": "dc-south.glb",
+      "triangles": 8418,
+      "bytes": 61056,
+      "reimport": true
+    },
+    {
+      "file": "rack-basic.glb",
+      "triangles": 932,
+      "bytes": 18668,
+      "reimport": true
+    },
+    {
+      "file": "rack-cooled.glb",
+      "triangles": 1548,
+      "bytes": 23888,
+      "reimport": true
+    },
+    {
+      "file": "rack-enterprise.glb",
+      "triangles": 1928,
+      "bytes": 27044,
+      "reimport": true
+    },
+    {
+      "file": "car-1.glb",
+      "triangles": 7996,
+      "bytes": 79092,
+      "reimport": true
+    },
+    {
+      "file": "car-2.glb",
+      "triangles": 9044,
+      "bytes": 91500,
+      "reimport": true
+    },
+    {
+      "file": "car-3.glb",
+      "triangles": 7988,
+      "bytes": 78776,
+      "reimport": true
+    },
+    {
+      "file": "person-1.glb",
+      "triangles": 2064,
+      "bytes": 34796,
+      "reimport": true
+    },
+    {
+      "file": "person-2.glb",
+      "triangles": 2064,
+      "bytes": 34800,
+      "reimport": true
+    },
+    {
+      "file": "person-3.glb",
+      "triangles": 2108,
+      "bytes": 35292,
+      "reimport": true
+    },
+    {
+      "file": "person-4.glb",
+      "triangles": 1816,
+      "bytes": 30616,
+      "reimport": true
+    },
+    {
+      "file": "person-5.glb",
+      "triangles": 1996,
+      "bytes": 33208,
+      "reimport": true
+    },
+    {
+      "file": "person-6.glb",
+      "triangles": 1972,
+      "bytes": 32160,
+      "reimport": true
+    },
+    {
+      "file": "car-4.glb",
+      "triangles": 19768,
+      "bytes": 171816,
+      "reimport": true
+    },
+    {
+      "file": "car-5.glb",
+      "triangles": 12840,
+      "bytes": 134724,
+      "reimport": true
+    },
+    {
+      "file": "car-6.glb",
+      "triangles": 8597,
+      "bytes": 83972,
+      "reimport": true
+    }
+  ],
+  "cityInteractiveObjects": 12,
+  "cityBytes": 1662272,
+  "browserInteraction": false
+}

@@ -14,7 +14,7 @@ describe('purchases, delivery and selling', () => {
   it('starts with independent unowned locations', () => {
     const game = createInitialGame()
     expect(game.cash).toBe(12000)
-    expect(game.locations).toHaveLength(5)
+    expect(game.locations).toHaveLength(7)
     expect(game.locations.every((item) => !item.owned && item.servers === 0)).toBe(true)
     expect(game.locations[0]).not.toBe(createInitialGame().locations[0])
   })

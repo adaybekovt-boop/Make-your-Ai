@@ -1,138 +1,163 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js'
 import type { ChassisRig, GridPosition, GridSize, InstalledServer } from '../systems/types'
+import { cellWorld, ELEVATION, floorCell, ROW_SPACING } from './interiorLayout'
 
-export interface CellProjection { row: number; col: number; x: number; y: number; size: number }
+export interface CellProjection { row: number; col: number; x: number; y: number; size: number; height: number }
 export class InteriorScene {
   private scene = new THREE.Scene()
-  private camera = new THREE.OrthographicCamera(-5, 5, 5, -5, .1, 100)
+  private camera = new THREE.OrthographicCamera(-5, 5, 5, -5, .1, 150)
   private renderer = new THREE.WebGLRenderer({ antialias: true })
   private equipment = new THREE.Group()
-  private highlight: THREE.Mesh
   private observer: ResizeObserver
-  private geometry = new THREE.BoxGeometry(1, 1, 1)
-  private materials = new Map<string, THREE.MeshStandardMaterial>()
   private disposed = false
-  private frame = 0
   private signature = ''
   private raycaster = new THREE.Raycaster()
   private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+  private templates = new Map<string, THREE.Group>()
+  private assets: THREE.Group[] = []
+  private materials = new Set<THREE.Material>()
+  private selected: GridPosition | null = null
+  private servers: InstalledServer[] = []
+  private rigs: ChassisRig[] = []
+  private efficiency = 1
+  private focused = false
 
-  constructor(private host: HTMLElement, private grid: GridSize, private onSelect: (position: GridPosition | null) => void, private onProject: (cells: CellProjection[]) => void) {
+  constructor(private host: HTMLElement, private grid: GridSize, private onSelect: (position: GridPosition | null) => void, private onProject: (cells: CellProjection[]) => void, private locationId = 'garage', private onError: (message: string) => void = () => {}) {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5))
-    this.renderer.setClearColor('#252b2c')
+    this.renderer.setClearColor('#202b30')
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.3
-    this.camera.position.set(0, 20, 0)
-    this.camera.up.set(0, 0, -1)
-    this.camera.lookAt(0, 0, 0)
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8b9590, 2.6))
-    const light = new THREE.DirectionalLight(0xfff6e6, 2)
-    light.position.set(-4, 12, -6); this.scene.add(light)
-    this.box(0, -.16, 0, grid.cols + 3.0, .22, grid.rows + 1.3, '#555e5d')
-    for (let row = 0; row < grid.rows; row++) for (let col = 0; col < grid.cols; col++) {
-      const x = col - (grid.cols - 1) / 2, z = row - (grid.rows - 1) / 2
-      this.box(x, -.03, z, .965, .08, .965, (row + col) % 2 ? '#a9afad' : '#b6bcb9')
-      for (const dx of [-.40, .40]) for (const dz of [-.40, .40]) this.box(x + dx, .019, z + dz, .026, .012, .026, '#69736e')
-    }
-    const left = -grid.cols / 2 - 1.35, right = grid.cols / 2 + 1.35
-    const back = -grid.rows / 2 - .56, front = grid.rows / 2 + .56
-    for (const x of [left, right]) this.box(x, .15, 0, .16, .5, grid.rows + 1.28, '#737b73')
-    this.box(0, .15, back, grid.cols + 2.85, .5, .16, '#737b73')
-    const doorWidth = grid.cols * .78
-    this.box(0, .025, front, doorWidth, .06, .30, '#a0a79f')
-    for (let i = 0; i < 9; i++) this.box(0, .07, front - .12 + i * .028, doorWidth, .025, .012, '#566059')
-    for (const side of [-1, 1]) this.box(side * (doorWidth / 2 + .08), .15, front, .15, .5, .3, '#75816e')
-    this.box(0, -.1, front + .32, doorWidth + .3, .04, .3, '#444e49')
-    // Fixed furniture lives outside the playable cells.
-    this.box(left + .48, .26, back + .67, .64, .5, 1.0, '#77634a')
-    this.box(left + .48, .53, back + .67, .68, .055, 1.05, '#b39872')
-    for (let i = 0; i < 4; i++) this.box(left + .49, .57, back + .35 + i * .2, .36, .02, .04, '#455451')
-    this.box(right - .44, .26, back + .7, .54, .52, 1.02, '#435e5b')
-    for (let i = 0; i < 4; i++) this.box(right - .44, .53, back + .35 + i * .2, .48, .025, .035, '#7b9990')
-    this.box(right - .40, .10, .45, .50, .18, .52, '#333c3a')
-    this.box(right - .40, .20, .45, .32, .03, .32, '#767b70')
-    this.box(right - .40, .10, 1.12, .50, .18, .52, '#333c3a')
-    this.box(right - .40, .20, 1.12, .32, .03, .32, '#767b70')
-    this.box(left + .22, .32, .35, .22, .45, .6, '#94a492')
-    this.box(left + .24, .56, .35, .10, .02, .20, '#c0d59b')
-    for (const x of [-grid.cols / 2 - .12, grid.cols / 2 + .12]) for (let i = 0; i < grid.rows * 5; i++) this.box(x, .028, -grid.rows / 2 + .1 + i * .2, .06, .015, .09, '#c5b888')
-    this.highlight = new THREE.Mesh(new THREE.PlaneGeometry(.98, .98), new THREE.MeshBasicMaterial({ color: '#d5efb3', transparent: true, opacity: .28, depthWrite: false }))
-    this.highlight.rotation.x = -Math.PI / 2; this.highlight.position.y = .026; this.highlight.visible = false
-    this.scene.add(this.highlight, this.equipment)
+    this.renderer.toneMappingExposure = 1.15
+    this.renderer.shadowMap.enabled = true
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.scene.add(new THREE.HemisphereLight(0xe9f5ff, 0x66523d, 1.5))
+    const light = new THREE.DirectionalLight(0xffe3ba, 2.2)
+    light.position.set(-5, 9, 5); light.castShadow = true
+    Object.assign(light.shadow.camera, { left: -15, right: 15, top: 20, bottom: -20 })
+    light.shadow.mapSize.set(1024, 1024); light.shadow.normalBias = .03; light.shadow.bias = -.0003
+    this.scene.add(light, this.equipment)
     host.append(this.renderer.domElement)
     this.renderer.domElement.addEventListener('pointerup', this.click)
-    this.observer = new ResizeObserver(() => this.resize())
-    this.observer.observe(host)
+    this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(host)
     document.addEventListener('visibilitychange', this.visible)
     this.resize()
+    void this.load()
   }
-  private material(color: string) {
-    let material = this.materials.get(color)
-    if (!material) { material = new THREE.MeshStandardMaterial({ color, roughness: .8, metalness: .12 }); this.materials.set(color, material) }
-    return material
-  }
-  private box(x: number, y: number, z: number, w: number, h: number, d: number, color: string, parent: THREE.Object3D = this.scene) {
-    const mesh = new THREE.Mesh(this.geometry, this.material(color)); mesh.position.set(x, y, z); mesh.scale.set(w, h, d); parent.add(mesh); return mesh
+  private async load() {
+    const decoder = new DRACOLoader().setDecoderPath(`${import.meta.env.BASE_URL}models/metropolis/draco/`).setWorkerLimit(1)
+    const loader = new GLTFLoader().setDRACOLoader(decoder)
+    const id = this.locationId === 'overseas-west' ? 'server-hall' : this.locationId === 'overseas-east' ? 'campus' : this.locationId
+    try {
+      const manifest = await fetch(`${import.meta.env.BASE_URL}models/interiors/manifest.json`).then(r => { if (!r.ok) throw new Error('Манифест интерьеров недоступен'); return r.json() })
+      const room = manifest.models.find((entry: { id: string }) => entry.id === id)
+      if (!room) throw new Error('Интерьер отсутствует в манифесте')
+      const requests = [{ key: 'room', url: `interiors/${room.file}` }, ...(id === 'hq' ? [] : ['rack-basic', 'rack-cooled', 'rack-enterprise'].map(key => ({ key, url: `racks/${key}.glb` })))]
+      const results = await Promise.allSettled(requests.map(async ({ key, url }) => {
+        const asset = (await loader.loadAsync(`${import.meta.env.BASE_URL}models/${url}`)).scene
+        if (this.disposed) { this.disposeAsset(asset); return }
+        this.assets.push(asset)
+        asset.traverse(o => { if (o instanceof THREE.Mesh) { o.castShadow = true; o.receiveShadow = true } })
+        if (key === 'room') this.scene.add(asset); else this.templates.set(key, asset)
+      }))
+      if (this.disposed) return
+      if (results.some(r => r.status === 'rejected')) throw new Error('Не удалось загрузить 3D-модели помещения. Вернитесь на карту и повторите вход.')
+      this.signature = ''; this.update(this.servers, this.selected, this.efficiency, this.rigs)
+      this.host.dataset.interiorReady = id
+    } catch (error) { if (!this.disposed) this.onError(error instanceof Error ? error.message : 'Ошибка загрузки интерьера') } finally { decoder.dispose() }
   }
   update(servers: InstalledServer[], selected: GridPosition | null, efficiency: number, rigs: ChassisRig[] = []) {
+    this.servers = servers; this.rigs = rigs; this.efficiency = efficiency
+    if (!selected || selected.row !== this.selected?.row || selected.col !== this.selected?.col) this.focused = false
+    this.selected = selected
     const signature = JSON.stringify([servers, rigs, selected, efficiency.toFixed(2)])
     if (this.disposed || signature === this.signature) return
     this.signature = signature
-    this.equipment.clear()
-    for (const rig of rigs) {
-      const x = rig.gridPosition.col - (this.grid.cols - 1) / 2, z = rig.gridPosition.row - (this.grid.rows - 1) / 2
-      this.box(x, .08, z, .65, .10, .82, '#626d66', this.equipment)
-      for (const dx of [-.27, .27]) this.box(x + dx, .24, z, .06, .30, .78, '#81928b', this.equipment)
+    this.equipment.children.forEach(o => { if (o instanceof THREE.InstancedMesh) o.dispose() })
+    this.equipment.clear(); this.materials.forEach(m => m.dispose()); this.materials.clear()
+    const batches = new Map<string, (InstalledServer | ChassisRig)[]>()
+    for (const item of [...rigs, ...servers]) {
+      if (!item.gridPosition) continue
+      const key = `${item.chassis ?? 'rack-basic'}:${'chip' in item ? item.chip : 'empty'}`
+      batches.set(key, [...(batches.get(key) ?? []), item])
     }
-    for (const server of servers) {
-      if (!server.gridPosition) continue
-      const x = server.gridPosition.col - (this.grid.cols - 1) / 2, z = server.gridPosition.row - (this.grid.rows - 1) / 2
-      const accent = efficiency < 1 ? '#c5b5a3' : server.chip === 'accelerator' ? '#8fbccc' : server.chip === 'pro-gpu' ? '#aab4d4' : '#bad79a'
-      this.box(x + .035, .07, z + .055, .65, .06, .82, '#626d66', this.equipment)
-      this.box(x, .24, z, .62, .32, .78, '#303b3b', this.equipment)
-      this.box(x, .408, z, .53, .025, .69, '#536363', this.equipment)
-      for (let index = 0; index < 5; index++) this.box(x, .426, z - .22 + index * .09, .37, .018, .034, '#233231', this.equipment)
-      this.box(x, .445, z + .30, .47, .025, .065, accent, this.equipment)
-      this.box(x - .18, .45, z - .28, .065, .027, .035, accent, this.equipment)
+    const matrix = new THREE.Matrix4(), translation = new THREE.Matrix4()
+    for (const items of batches.values()) {
+      const first = items[0], template = this.templates.get(first.chassis ?? 'rack-basic')
+      if (!template) continue
+      template.updateMatrixWorld(true)
+      template.traverse(source => {
+        if (!(source instanceof THREE.Mesh)) return
+        let ancestor: THREE.Object3D | null = source
+        while (ancestor) {
+          if (ancestor.name === 'compute_modules' && !('chip' in first)) return
+          ancestor = ancestor.parent
+        }
+        const tint = (original: THREE.Material) => {
+          const material = original.clone(); this.materials.add(material)
+          if (material instanceof THREE.MeshStandardMaterial && material.name === 'chip_indicator') {
+            const color = efficiency < 1 ? '#e39c5e' : 'chip' in first && first.chip === 'flagship' ? '#c498ed' : 'chip' in first && first.chip === 'accelerator' ? '#67c6ef' : '#75d6b9'
+            material.color.set(color); material.emissive.set(color); material.emissiveIntensity = .8
+          }
+          return material
+        }
+        const mesh = new THREE.InstancedMesh(source.geometry, Array.isArray(source.material) ? source.material.map(tint) : tint(source.material), items.length)
+        mesh.castShadow = true; mesh.receiveShadow = true
+        mesh.userData.cells = items.map(item => item.gridPosition)
+        items.forEach((item, index) => {
+          const p = cellWorld(this.grid, item.gridPosition!, .04)
+          translation.makeTranslation(p.x, p.y, p.z); matrix.multiplyMatrices(translation, source.matrixWorld)
+          mesh.setMatrixAt(index, matrix)
+        })
+        mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere(); this.equipment.add(mesh)
+      })
     }
-    this.highlight.visible = selected !== null
-    if (selected) this.highlight.position.set(selected.col - (this.grid.cols - 1) / 2, .46, selected.row - (this.grid.rows - 1) / 2)
-    this.render()
+    this.resize()
   }
+  focusSelected() { if (this.selected) { this.focused = !this.focused; this.resize() } }
   private resize() {
+    if (this.disposed) return
     const width = Math.max(this.host.clientWidth, 1), height = Math.max(this.host.clientHeight, 1)
     this.renderer.setSize(width, height)
-    const half = Math.max((this.grid.rows + 1.7) / 2, (this.grid.cols + 3.5) / 2 * height / width)
+    const roomWidth = Math.max(6.6, this.grid.cols * 1.3 + 3.1)
+    const depth = Math.max(6, (this.grid.rows - 1) * ROW_SPACING + 3.6)
+    const half = Math.max((depth * Math.sin(ELEVATION) + 3.8) / 2, (roomWidth + depth * .18 + 1.5) / 2 * height / width)
+    const target = this.focused && this.selected ? cellWorld(this.grid, this.selected, .5) : new THREE.Vector3(0, 1, 0)
+    this.camera.position.copy(target).add(new THREE.Vector3(6, 30 * Math.tan(ELEVATION), 29.4))
+    this.camera.lookAt(target)
+    this.camera.zoom = this.focused ? 1.8 : 1
     this.camera.left = -half * width / height; this.camera.right = half * width / height; this.camera.top = half; this.camera.bottom = -half
     this.camera.updateProjectionMatrix(); this.camera.updateMatrixWorld()
-    const cells: CellProjection[] = []
-    const unit = width / (this.camera.right - this.camera.left)
+    const cells: CellProjection[] = [], unit = width / (this.camera.right - this.camera.left) * this.camera.zoom
     for (let row = 0; row < this.grid.rows; row++) for (let col = 0; col < this.grid.cols; col++) {
-      const p = new THREE.Vector3(col - (this.grid.cols - 1) / 2, 0, row - (this.grid.rows - 1) / 2).project(this.camera)
-      cells.push({ row, col, x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2, size: unit })
+      // Compact labels sit in the aisle, never on top of a rack hit target.
+      const p = cellWorld(this.grid, { row, col }, .05); p.z += .84; p.project(this.camera)
+      cells.push({ row, col, x: (p.x + 1) * width / 2, y: (1 - p.y) * height / 2, size: unit * .85, height: Math.max(14, unit * .25) })
     }
-    this.onProject(cells); this.renderer.render(this.scene, this.camera)
+    this.onProject(cells); this.render()
   }
-  private render() {
-    if (this.disposed || this.frame) return
-    this.renderer.render(this.scene, this.camera)
-  }
+  private render() { if (!this.disposed) { this.renderer.render(this.scene, this.camera); this.host.dataset.drawCalls = String(this.renderer.info.render.calls); this.host.dataset.triangles = String(this.renderer.info.render.triangles) } }
   private visible = () => { if (!document.hidden) this.render() }
   private click = (event: PointerEvent) => {
-    if (event.button !== 0) return
+    if (event.button !== 0 || this.locationId === 'hq') return
     const rect = this.renderer.domElement.getBoundingClientRect()
     this.raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, -(event.clientY - rect.top) / rect.height * 2 + 1), this.camera)
+    const hit = this.raycaster.intersectObject(this.equipment, true)[0]
+    if (hit?.instanceId !== undefined) { this.onSelect(hit.object.userData.cells[hit.instanceId] as GridPosition); return }
     const point = this.raycaster.ray.intersectPlane(this.plane, new THREE.Vector3())
-    if (!point) return
-    const col = Math.floor(point.x + this.grid.cols / 2), row = Math.floor(point.z + this.grid.rows / 2)
-    this.onSelect(row >= 0 && col >= 0 && row < this.grid.rows && col < this.grid.cols ? { row, col } : null)
+    this.onSelect(point ? floorCell(this.grid, point) : null)
+  }
+  private disposeAsset(asset: THREE.Object3D) {
+    asset.traverse(o => { if (o instanceof THREE.Mesh) { o.geometry.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose() } })
   }
   destroy() {
     if (this.disposed) return
-    this.disposed = true; cancelAnimationFrame(this.frame); this.observer.disconnect()
+    this.disposed = true; this.observer.disconnect()
     document.removeEventListener('visibilitychange', this.visible)
     this.renderer.domElement.removeEventListener('pointerup', this.click)
-    this.geometry.dispose(); this.highlight.geometry.dispose(); (this.highlight.material as THREE.Material).dispose()
-    this.materials.forEach((material) => material.dispose()); this.renderer.dispose(); this.renderer.forceContextLoss(); this.renderer.domElement.remove()
+    this.equipment.children.forEach(o => { if (o instanceof THREE.InstancedMesh) o.dispose() })
+    this.scene.traverse(o => { if (o instanceof THREE.DirectionalLight) o.shadow.dispose() })
+    this.assets.forEach(a => this.disposeAsset(a)); this.materials.forEach(m => m.dispose())
+    this.renderer.dispose(); this.renderer.forceContextLoss(); this.renderer.domElement.remove()
   }
 }

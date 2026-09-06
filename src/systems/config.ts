@@ -128,6 +128,11 @@ export const LOCATIONS: LocationDefinition[] = [
   },
 ]
 
+LOCATIONS.push(
+  { id: 'dc-north', gridSize: { rows: 8, cols: 8 }, name: 'Северный дата-центр', district: '06 / СЕВЕРНЫЙ ПРОМЫШЛЕННЫЙ ПАРК', description: 'Загородный вычислительный комплекс с собственной подстанцией и резервным охлаждением.', price: 220_000, powerLimitKw: 150, rentPerHour: 2_200, polygon: [], center: { x: 0, y: 0 } },
+  { id: 'dc-south', gridSize: { rows: 8, cols: 8 }, name: 'Южный дата-центр', district: '07 / ЮЖНЫЙ ПРОМЫШЛЕННЫЙ ПАРК', description: 'Большая площадка у кольцевой дороги: мощная электросеть для расширения вашей инфраструктуры.', price: 320_000, powerLimitKw: 220, rentPerHour: 3_200, polygon: [], center: { x: 0, y: 0 } },
+)
+
 export function getLocationDefinition(id: LocationDefinition['id']): LocationDefinition {
   const location = LOCATIONS.find((item) => item.id === id)
   if (!location) throw new Error(`Unknown location: ${id}`)

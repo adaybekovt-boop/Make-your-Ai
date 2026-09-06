@@ -1,3 +1,4 @@
+import { rareCarArrival } from './rareTraffic'
 import {
   CHIPS,
   CONTRACT_INTERVAL_MIN_DAYS,
@@ -190,6 +191,9 @@ export function advanceSimulation(state: GameState, realSeconds: number, rng: Rn
     totalRevenue: state.totalRevenue + revenue,
     totalExpenses: state.totalExpenses + expenses,
   }
+
+  const arrival = rareCarArrival(state.elapsedGameHours, next.elapsedGameHours, rng)
+  if (arrival !== undefined) next.rareCarUntil = arrival
 
   next = tickTraining(next, elapsedGameHours, economy.effectiveCompute, rng)
   next = deliverOrders(next, rng)

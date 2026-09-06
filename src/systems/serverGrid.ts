@@ -2,6 +2,7 @@ import { CHASSIS, CHIPS, getLocationDefinition, getRegionLocationDefinition } fr
 import type { AnyLocationId, ChipId, GridPosition, GridSize, InstalledServer, LocationState } from './types'
 
 export const GRID_SIZES: Record<AnyLocationId, GridSize> = {
+  'dc-north': { rows: 8, cols: 8 }, 'dc-south': { rows: 8, cols: 8 },
   garage: { rows: 3, cols: 3 }, workshop: { rows: 4, cols: 4 },
   technopark: { rows: 5, cols: 5 }, 'server-hall': { rows: 6, cols: 6 },
   campus: { rows: 8, cols: 8 }, 'overseas-west': { rows: 6, cols: 6 }, 'overseas-east': { rows: 8, cols: 8 },

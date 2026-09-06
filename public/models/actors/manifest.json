@@ -1,0 +1,113 @@
+{
+  "builder": "tools/build_reference_people.py + tools/build_actors.py",
+  "models": [
+    {
+      "kind": "car",
+      "file": "car-1.glb",
+      "source": "artifacts/actors/reference-v2/car-1.blend",
+      "triangles": 7996,
+      "bytes": 79092,
+      "reference": "artifacts/references/vehicle-lineup.png"
+    },
+    {
+      "kind": "car",
+      "file": "car-2.glb",
+      "source": "artifacts/actors/reference-v2/car-2.blend",
+      "triangles": 9044,
+      "bytes": 91500,
+      "reference": "artifacts/references/vehicle-lineup.png"
+    },
+    {
+      "kind": "car",
+      "file": "car-3.glb",
+      "source": "artifacts/actors/reference-v2/car-3.blend",
+      "triangles": 7988,
+      "bytes": 78776,
+      "reference": "artifacts/references/vehicle-lineup.png"
+    },
+    {
+      "kind": "person",
+      "file": "person-1.glb",
+      "source": "artifacts/actors/person-1.blend",
+      "reference": 1,
+      "description": "Denim shirt and chinos",
+      "triangles": 2064,
+      "bytes": 34796
+    },
+    {
+      "kind": "person",
+      "file": "person-2.glb",
+      "source": "artifacts/actors/person-2.blend",
+      "reference": 2,
+      "description": "Blue shirt and sand trousers",
+      "triangles": 2064,
+      "bytes": 34800
+    },
+    {
+      "kind": "person",
+      "file": "person-3.glb",
+      "source": "artifacts/actors/person-3.blend",
+      "reference": 3,
+      "description": "Navy suit and white shirt",
+      "triangles": 2108,
+      "bytes": 35292
+    },
+    {
+      "kind": "person",
+      "file": "person-4.glb",
+      "source": "artifacts/actors/person-4.blend",
+      "reference": 4,
+      "description": "Black top and blue jeans",
+      "triangles": 1816,
+      "bytes": 30616
+    },
+    {
+      "kind": "person",
+      "file": "person-5.glb",
+      "source": "artifacts/actors/person-5.blend",
+      "reference": 5,
+      "description": "White blouse and navy skirt",
+      "triangles": 1996,
+      "bytes": 33208
+    },
+    {
+      "kind": "person",
+      "file": "person-6.glb",
+      "source": "artifacts/actors/person-6.blend",
+      "reference": 6,
+      "description": "Graphic top and pleated skirt",
+      "triangles": 1972,
+      "bytes": 32160
+    },
+    {
+      "kind": "car",
+      "file": "car-4.glb",
+      "source": "artifacts/actors/hero-coupe/car-4.blend",
+      "triangles": 19768,
+      "bytes": 171816,
+      "rare": true,
+      "chance": 0.1,
+      "intervalGameHours": 6,
+      "reference": "artifacts/references/vehicle-lineup.png"
+    },
+    {
+      "kind": "car",
+      "file": "car-5.glb",
+      "source": "artifacts/actors/reference-v2/car-5.blend",
+      "triangles": 12840,
+      "bytes": 134724,
+      "vehicle": "urban-bus",
+      "reference": "artifacts/references/vehicle-lineup.png"
+    },
+    {
+      "kind": "car",
+      "file": "car-6.glb",
+      "source": "artifacts/actors/reference-v2/car-6.blend",
+      "triangles": 8597,
+      "bytes": 83972,
+      "vehicle": "yellow-taxi",
+      "reference": "artifacts/references/vehicle-lineup.png"
+    }
+  ],
+  "compression": "Draco, authored in Blender; tools/compress_visual_assets.py"
+}

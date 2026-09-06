@@ -1,0 +1,99 @@
+{
+  "cameraElevation": 22,
+  "spacing": [
+    1.3,
+    2.25
+  ],
+  "builder": "tools/build_interiors.py",
+  "models": [
+    {
+      "id": "garage",
+      "file": "garage.glb",
+      "source": "artifacts/interiors/garage.blend",
+      "rows": 3,
+      "cols": 3,
+      "triangles": 4241,
+      "bytes": 56220,
+      "width": 7.0,
+      "depth": 8.1
+    },
+    {
+      "id": "workshop",
+      "file": "workshop.glb",
+      "source": "artifacts/interiors/workshop.blend",
+      "rows": 4,
+      "cols": 4,
+      "triangles": 4136,
+      "bytes": 48980,
+      "width": 8.3,
+      "depth": 10.35
+    },
+    {
+      "id": "technopark",
+      "file": "technopark.glb",
+      "source": "artifacts/interiors/technopark.blend",
+      "rows": 5,
+      "cols": 5,
+      "triangles": 5684,
+      "bytes": 60296,
+      "width": 9.6,
+      "depth": 12.6
+    },
+    {
+      "id": "server-hall",
+      "file": "server-hall.glb",
+      "source": "artifacts/interiors/server-hall.blend",
+      "rows": 6,
+      "cols": 6,
+      "triangles": 5555,
+      "bytes": 48280,
+      "width": 10.9,
+      "depth": 14.85
+    },
+    {
+      "id": "campus",
+      "file": "campus.glb",
+      "source": "artifacts/interiors/campus.blend",
+      "rows": 8,
+      "cols": 8,
+      "triangles": 8132,
+      "bytes": 62976,
+      "width": 13.5,
+      "depth": 19.35
+    },
+    {
+      "id": "hq",
+      "file": "hq.glb",
+      "source": "artifacts/interiors/hq.blend",
+      "rows": 0,
+      "cols": 0,
+      "triangles": 2464,
+      "bytes": 44740,
+      "width": 6.6,
+      "depth": 6
+    },
+    {
+      "id": "dc-north",
+      "file": "dc-north.glb",
+      "source": "artifacts/interiors/dc-north.blend",
+      "rows": 8,
+      "cols": 8,
+      "triangles": 8414,
+      "bytes": 60776,
+      "width": 13.5,
+      "depth": 19.35
+    },
+    {
+      "id": "dc-south",
+      "file": "dc-south.glb",
+      "source": "artifacts/interiors/dc-south.blend",
+      "rows": 8,
+      "cols": 8,
+      "triangles": 8418,
+      "bytes": 61056,
+      "width": 13.5,
+      "depth": 19.35
+    }
+  ],
+  "compression": "Draco, authored in Blender; tools/compress_visual_assets.py"
+}

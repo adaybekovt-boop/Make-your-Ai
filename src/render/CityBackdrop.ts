@@ -19,11 +19,14 @@ export interface StreetRoute {
   speed: number
 }
 export interface CityManifest {
+  actorFiles?: string[]
+  bounds?: [number, number, number, number]
   scale: number
   campusCenter: [number, number, number]
   cityCenter: [number, number, number]
   objects: CityManifestEntry[]
   routes: StreetRoute[]
+  streetLamps?: [number, number, number][]
   actors: number
   optimizedObjects: number
   webBatches: number
@@ -51,6 +54,22 @@ export async function loadCityBackdrop(signal?: AbortSignal): Promise<{ city: TH
     if (!Array.isArray(manifest.objects) || !Array.isArray(manifest.routes) || manifest.scale !== 100) throw new Error('Описание сцены города повреждено.')
     const gltf = await loader.parseAsync(await modelResponse.arrayBuffer(), '')
     const city = gltf.scene
+    try {
+      const actorResults = await Promise.allSettled((manifest.actorFiles ?? []).map(async name => {
+        const response = await fetch(`${import.meta.env.BASE_URL}models/actors/${name}.glb`, { signal: controller.signal })
+        if (!response.ok) throw new Error('Не удалось загрузить жителей города.')
+        const actor = (await loader.parseAsync(await response.arrayBuffer(), '')).scene
+        const [kind, index] = name.split('-')
+        actor.name = `actor_${kind}_${Number(index) - 1}`
+        actor.userData.rare = name === 'car-4'
+        actor.visible = false
+        city.add(actor)
+      }))
+      if (actorResults.some(result => result.status === 'rejected')) throw new Error('Не удалось загрузить транспорт или жителей города.')
+    } catch (error) {
+      city.traverse(o => { if (o instanceof THREE.Mesh) { o.geometry.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose() } })
+      throw error
+    }
     city.scale.setScalar(manifest.scale)
     city.name = 'Living metropolis / Blender scene'
     city.traverse((object) => {
