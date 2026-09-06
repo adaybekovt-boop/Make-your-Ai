@@ -36,7 +36,7 @@ describe('real procurement and audience revenue', () => {
     expect(next.cash).toBe(state.cash - 206)
     expect(next.totalRevenue).toBe(0)
   })
-  it.each([null, 'friendly', 'raw'] as const)('survives the full $12,000 start, official delivery and audience ramp: %s', personality => {
+  it.each([null, 'friendly', 'raw'] as const)('survives the full 12,000-dollar start, official delivery and audience ramp: %s', personality => {
     let state = startKit('consumer-gpu', 'rack-basic', 'garage', 12000, personality)
     let minimumCash = state.cash, firstPositiveHour: number | null = null
     const observations: Array<{ hour: number; users: number; revenue: number }> = []

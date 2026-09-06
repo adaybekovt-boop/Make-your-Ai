@@ -1,6 +1,6 @@
 import type { ChassisDefinition, ChassisId, Channel, ChipId, ChipRack, LocationDefinition, RegionDefinition, ServerDefinition } from './types'
 
-export const BALANCE_VERSION = 1
+export const BALANCE_VERSION = 2
 export const STARTING_CASH = 12_000
 export const GAME_HOURS_PER_REAL_SECOND = 1 / 60
 export const ELECTRICITY_PRICE_PER_KWH = 18
@@ -301,7 +301,7 @@ export const INSURANCE_COVERAGE = 0.4
 // ---------- Инвесторы ----------
 export const INVESTOR_CHECK_INTERVAL_DAYS = 10
 export const INVESTOR_FIRST_CHECK_DAY = 10
-export const INVESTOR_TARGET_PROFIT_PER_HOUR = 2_500
+export const INVESTOR_TARGET_PROFIT_PER_HOUR = 1_000
 export const INVESTOR_TARGET_IQ = 60
 export const INVESTOR_PAYOUT_RATIO = 0.1
 export const INVESTOR_RESTRICTION_HOURS = 48
@@ -349,13 +349,13 @@ export const TECH_NODES: TechNodeDefinition[] = [
     name: 'Голос',
     description: 'Голосовой канал для партнёров: лицензии ×1.5, +10% к ёмкости аудитории.',
     iqThreshold: 120,
-    cost: 500_000,
+    cost: 150_000,
   },
 ]
 
 // ---------- Поглощение ----------
 export const ACQUISITION_IQ_THRESHOLD = 110
-export const ACQUISITION_REVENUE_THRESHOLD = 1_500_000
+export const ACQUISITION_REVENUE_THRESHOLD = 1_000_000
 export const ACQUISITION_OFFER = 2_500_000
 
 export function rackCompute(racks: ChipRack[] | undefined): number {
