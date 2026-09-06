@@ -11,5 +11,5 @@ await mkdir(output,{recursive:true});
 await build({root,base:'./',configFile:false,plugins:[
   {name:'measurement-only',enforce:'pre',resolveId(id){if(id==='three')return '\0measurement:three'},load(id){if(id==='\0measurement:three')return probe},transform(s,id){if(id.endsWith('/src/store/gameStore.ts'))return s+'\n;globalThis.__perfStore=useGameStore;\n';}},
   react()
-],build:{outDir:output,emptyOutDir:true,sourcemap:true,minify:true}});
+],build:{outDir:output,emptyOutDir:true,sourcemap:true,minify:true,rollupOptions:{input:{app:path.join(root,'index.html'),compare:path.join(root,'src/render/perf/asset-compare.html')}}}});
 await writeFile(output+'/measurement-build.json',JSON.stringify({stage,production:true,measurementShim:true,fixedActualPixelRatio:1,srcModifiedByShim:false,storeAccess:'exposed in measurement bundle only'},null,2));
