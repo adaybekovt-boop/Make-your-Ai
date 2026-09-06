@@ -24,14 +24,14 @@ export function normalizeLocation(location: LocationState): LocationState & { gr
   const chips: ChipId[] = [...Array<ChipId>(location.servers).fill('consumer-gpu'), ...(location.racks ?? []).flatMap((rack) => Array<ChipId>(rack.count).fill(rack.chip))]
   const capacity = gridSize.rows * gridSize.cols
   const installedServers = chips.map((chip, index): InstalledServer => ({
-    id: `server-${index + 1}`, chip, chassis: 'rack-basic', overclock: 1,
+    id: `server-${index + 1}`, chip, chassis: chip === 'flagship' ? 'rack-enterprise' : chip === 'accelerator' ? 'rack-cooled' : 'rack-basic', overclock: 1,
     gridPosition: index < capacity ? { row: Math.floor(index / gridSize.cols), col: index % gridSize.cols } : null,
   }))
   return { ...location, gridSize, installedServers, serverSeq: chips.length }
 }
 
 export function withInstalledServers(location: LocationState, installedServers: InstalledServer[], serverSeq = normalizeLocation(location).serverSeq): LocationState {
-  const racks = (['pro-gpu', 'accelerator'] as const).map((chip) => ({ chip, count: installedServers.filter((server) => server.chip === chip).length })).filter((rack) => rack.count > 0)
+  const racks = (['pro-gpu', 'accelerator', 'flagship'] as const).map((chip) => ({ chip, count: installedServers.filter((server) => server.chip === chip).length })).filter((rack) => rack.count > 0)
   return { ...location, gridSize: gridSizeFor(location.id), installedServers, serverSeq, servers: installedServers.filter((server) => server.chip === 'consumer-gpu').length, racks }
 }
 
@@ -39,7 +39,7 @@ export function firstFreeCell(location: LocationState): GridPosition | null {
   const current = normalizeLocation(location)
   for (let row = 0; row < current.gridSize.rows; row++) for (let col = 0; col < current.gridSize.cols; col++) {
     const position = { row, col }
-    if (!current.installedServers.some((server) => sameCell(server.gridPosition, position))) return position
+    if (!current.installedServers.some((server) => sameCell(server.gridPosition, position)) && !(current.rigs ?? []).some((rig) => sameCell(rig.gridPosition, position))) return position
   }
   return null
 }
@@ -73,6 +73,7 @@ export function placementError(location: LocationState, chip: ChipId, position: 
   if (!isGridPosition(position, current.gridSize)) return 'Эта ячейка находится за пределами помещения.'
   if (current.installedServers.filter((server) => server.gridPosition).length >= current.gridSize.rows * current.gridSize.cols) return 'Все ячейки заняты. В помещении нет свободного места.'
   if (current.installedServers.some((server) => sameCell(server.gridPosition, position))) return 'Эта ячейка уже занята сервером.'
+  if ((current.rigs ?? []).some((rig) => sameCell(rig.gridPosition, position))) return 'Эта ячейка уже занята стойкой.'
   const demand = locationEquipment(current).demandKw + serverOutput({ chip, overclock }).powerKw
   if (demand > locationDefinition(location.id).powerLimitKw + 1e-8) return 'Недостаточно мощности энергосети. Снизьте разгон других серверов или выберите другую площадку.'
   return null

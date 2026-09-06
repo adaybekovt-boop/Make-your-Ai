@@ -27,7 +27,7 @@ export function validateGridData(source: Record<string, unknown>, location: Loca
       cells.add(key)
       gridPosition = { row: point.row, col: point.col }
     }
-    const chassis = server.chassis === undefined ? 'rack-basic' : server.chassis
+    const chassis = server.chassis === undefined ? (server.chip === 'flagship' ? 'rack-enterprise' : server.chip === 'accelerator' ? 'rack-cooled' : 'rack-basic') : server.chassis
     if (typeof chassis !== 'string' || !Object.hasOwn(CHASSIS, chassis)) throw new Error('Неизвестный тип стойки.')
     return { id: server.id, chip: server.chip as InstalledServer['chip'], chassis: chassis as ChassisId, overclock: server.overclock, gridPosition }
   })
@@ -59,7 +59,7 @@ export function validateGridData(source: Record<string, unknown>, location: Loca
       if (typeof value !== 'object') throw new Error('Некорректный склад.')
       const result: Record<string, number> = {}
       for (const [key, count] of Object.entries(value as Record<string, unknown>)) {
-        if (!keys.includes(key) || typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > 400) throw new Error('Некорректный склад.')
+        if (!keys.includes(key) || typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > Number.MAX_SAFE_INTEGER) throw new Error('Некорректный склад.')
         result[key] = count
       }
       return result
@@ -67,8 +67,18 @@ export function validateGridData(source: Record<string, unknown>, location: Loca
     inventory = {
       chips: readCounts(raw.chips, Object.keys(CHIPS)),
       chassis: readCounts(raw.chassis, Object.keys(CHASSIS)),
+      ...(raw.greyChips !== undefined ? { greyChips: readCounts(raw.greyChips, Object.keys(CHIPS)) } : {}),
+      ...(raw.greyChassis !== undefined ? { greyChassis: readCounts(raw.greyChassis, Object.keys(CHASSIS)) } : {}),
     }
   }
+  if (inventory) {
+    for (const [key, counts] of [['chips', inventory.greyChips], ['chassis', inventory.greyChassis]] as const) {
+      for (const [item, count] of Object.entries(counts ?? {})) {
+        if (count > ((inventory[key] as Record<string, number>)[item] ?? 0)) throw new Error('Серое оборудование превышает остаток склада.')
+      }
+    }
+  }
+  if (!location.owned && ((rigs?.length ?? 0) > 0 || Object.values(inventory?.chips ?? {}).some(Boolean) || Object.values(inventory?.chassis ?? {}).some(Boolean))) throw new Error('Склад в неприобретённой локации.')
   const synced = withInstalledServers(location, installedServers, sequence)
   if (synced.servers !== location.servers) throw new Error('Счётчик серверов не совпадает с сеткой.')
   for (const chip of Object.keys(CHIPS)) {

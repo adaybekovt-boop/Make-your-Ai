@@ -10,8 +10,7 @@ import {
   TOKEN_PRICE_DEFAULT,
 } from './config'
 import { calculateCompanyEconomy } from './economy'
-import { installServerAt, sellServerById } from './placement'
-import { locationEquipment, normalizeLocation } from './serverGrid'
+import { locationEquipment } from './serverGrid'
 import {
   isModelOnline,
   purchasesRestricted,
@@ -26,7 +25,6 @@ import { processDailySystems } from './daily'
 import type {
   ActionResult,
   AnyLocationId,
-  ChipId,
   GameState,
   LocationState,
   Milestones,
@@ -77,6 +75,7 @@ export function createInitialGame(): GameState {
         'consumer-gpu': { price: CHIPS['consumer-gpu'].price, trend: 0 },
         'pro-gpu': { price: CHIPS['pro-gpu'].price, trend: 0 },
         accelerator: { price: CHIPS.accelerator.price, trend: 0 },
+        flagship: { price: CHIPS.flagship.price, trend: 0 },
       },
       advertising: false,
       tokenPrice: TOKEN_PRICE_DEFAULT,

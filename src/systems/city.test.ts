@@ -1,7 +1,9 @@
+import { deliveredServer } from './testSupport'
+import { sellServerById } from './placement'
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { CITY_TOWERS, buyCityTower, cityPropertyEconomy } from './city'
-import { advanceSimulation, buyChip, buyLocation, createInitialGame, sellChip } from './simulation'
+import { advanceSimulation, buyLocation, createInitialGame } from './simulation'
 import { calculateCompanyEconomy } from './economy'
 import { decodeSave, makeSaveEnvelope, validateGameState } from '../persistence/saves'
 import { installedChips } from './serverSlots'
@@ -46,16 +48,16 @@ describe('city properties', () => {
 })
 
 describe('shop delivery and mixed roof slots', () => {
-  it('delivers a pro chip at the existing market price and can sell the correct class', () => {
+  it('orders, delivers and mounts a pro chip with a separate rack and can sell the correct class', () => {
     let game = unwrap(buyLocation({ ...createInitialGame(), cash: 50_000 }, 'workshop'))
     game = { ...game, market: { ...game.market, chips: { ...game.market.chips, 'pro-gpu': { price: 5200, trend: -1 } } } }
-    game = unwrap(buyChip(game, 'workshop', 'consumer-gpu'))
+    game = unwrap(deliveredServer(game, 'workshop', 'consumer-gpu'))
     const before = game.cash
-    game = unwrap(buyChip(game, 'workshop', 'pro-gpu'))
-    expect(game.cash).toBe(before - 5200)
+    game = unwrap(deliveredServer(game, 'workshop', 'pro-gpu'))
+    expect(game.cash).toBe(before - 11200)
     expect(installedChips(game.locations[1])).toEqual(['consumer-gpu', 'pro-gpu'])
     expect(calculateCompanyEconomy(game).demandKw).toBe(5)
-    game = unwrap(sellChip(game, 'workshop', 'pro-gpu'))
+    game = unwrap(sellServerById(game, 'workshop', 'server-2'))
     expect(installedChips(game.locations[1])).toEqual(['consumer-gpu'])
   })
 })

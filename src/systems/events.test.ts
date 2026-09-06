@@ -1,3 +1,4 @@
+import { deliveredServer } from './testSupport'
 import { setServerOverclock } from './placement'
 import { describe, expect, it } from 'vitest'
 import {
@@ -14,7 +15,7 @@ import {
   PROMPT_INJECTION_SAFETY_FACTOR,
   VIRAL_HOURS,
 } from './config'
-import { createInitialGame, buyLocation, buyServer } from './simulation'
+import { createInitialGame, buyLocation } from './simulation'
 import {
   dailyComplaintRoll,
   dailyCourtRoll,
@@ -65,12 +66,12 @@ describe('courts over illegal data', () => {
 
 describe('neighbour complaints', () => {
   it('fire on an overloaded network, stay silent otherwise', () => {
-    let game = result(buyServer(result(buyLocation(rich(), 'garage')), 'garage'))
+    let game = result(deliveredServer(result(buyLocation(rich(), 'garage')), 'garage'))
     game = result(setServerOverclock(game, 'garage', 'server-1', 1.5))
     const complained = dailyComplaintRoll(game, always)
     expect(complained.cash).toBe(game.cash - COMPLAINT_FINE)
 
-    const quiet = result(buyServer(result(buyLocation(rich(), 'garage')), 'garage'))
+    const quiet = result(deliveredServer(result(buyLocation(rich(), 'garage')), 'garage'))
     expect(dailyComplaintRoll(quiet, always).cash).toBe(quiet.cash)
   })
 
@@ -117,7 +118,7 @@ describe('prompt injection', () => {
 
 describe('the random event pool', () => {
   it('fire destroys one server and bills the cleanup', () => {
-    let game = result(buyServer(result(buyLocation(rich(), 'garage')), 'garage'))
+    let game = result(deliveredServer(result(buyLocation(rich(), 'garage')), 'garage'))
     const before = game.cash
     const after = dailyRandomEvent(game, gateThen(0.02)) // pool index 0 = fire
     expect(after.locations[0].servers).toBe(0)

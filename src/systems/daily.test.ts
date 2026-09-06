@@ -1,5 +1,6 @@
+import { deliveredServer } from './testSupport'
 import { describe, expect, it } from 'vitest'
-import { createInitialGame, advanceSimulation, buyLocation, buyServer } from './simulation'
+import { createInitialGame, advanceSimulation, buyLocation } from './simulation'
 import { processDailySystems } from './daily'
 import { GAME_HOURS_PER_REAL_SECOND } from './config'
 import type { ActionResult, GameState, Rng } from './types'
@@ -42,7 +43,7 @@ describe('the daily hook', () => {
 describe('hourly accounting with the new flows', () => {
   it('compute revenue alone at the start: users are zero, so no token income', () => {
     let game = result(buyLocation(createInitialGame(), 'garage'))
-    game = result(buyServer(game, 'garage'))
+    game = result(deliveredServer(game, 'garage'))
     const before = game.cash
     game = advanceSimulation(game, 60, flat)
     const economyProfit = 960 - 36 - 90 - 80

@@ -1,3 +1,4 @@
+import { gridSizeFor, isGridPosition } from '../systems/serverGrid'
 import { validateGridData, migrateGridLocations } from './gridSave'
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import {
@@ -232,7 +233,7 @@ function validateMarket(value: unknown): MarketState {
   const chips = record(market.chips, 'цены чипов')
   const validatedChips = {} as MarketState['chips']
   for (const chip of Object.keys(CHIPS) as ChipId[]) {
-    const priceState = record(chips[chip], `цена ${chip}`)
+    const priceState = record(chips[chip] ?? { price: CHIPS[chip].price, trend: 0 }, `цена ${chip}`)
     const trend = finite(priceState.trend, 'тренд', -1)
     validatedChips[chip] = {
       price: finite(priceState.price, `цена ${chip}`),
@@ -260,11 +261,12 @@ function validateInvestors(value: unknown): InvestorsState {
   }
 }
 
-function validateOrders(value: unknown): EquipmentOrder[] {
+function validateOrders(value: unknown, locations: LocationState[], orderSeq: number): EquipmentOrder[] {
+  const ids = new Set<number>()
   if (!Array.isArray(value)) throw new Error('Некорректный список заказов.')
   if (value.length > 200) throw new Error('Слишком много заказов.')
-  return value.map((item) => {
-    const order = record(item, 'заказ')
+  return value.map((entry) => {
+    const order = record(entry, 'заказ')
     const kind = oneOf(order.kind, ['chip', 'chassis'] as const, 'тип заказа')
     if (!kind) throw new Error('Некорректный заказ.')
     const channel = oneOf(order.channel, ['official', 'grey'] as const, 'канал закупки')
@@ -278,9 +280,15 @@ function validateOrders(value: unknown): EquipmentOrder[] {
       const point = record(order.targetCell, 'ячейка заказа')
       targetCell = { row: finite(point.row, 'строка ячейки'), col: finite(point.col, 'колонка ячейки') }
     }
+    const location = locations.find((location) => location.id === order.locationId)
+    if (!location?.owned) throw new Error('Заказ в неизвестную или неприобретённую локацию.')
+    if (targetCell && !isGridPosition(targetCell, gridSizeFor(location.id))) throw new Error('Ячейка заказа за пределами сетки.')
+    const id = finite(order.id, 'номер заказа')
+    if (!Number.isSafeInteger(id) || id < 1 || id > orderSeq || ids.has(id)) throw new Error('Некорректный номер заказа.')
+    ids.add(id)
     const targetServerId = order.targetServerId === null || order.targetServerId === undefined ? null : String(order.targetServerId)
     return {
-      id: finite(order.id, 'номер заказа'),
+      id,
       locationId: String(order.locationId ?? '') as EquipmentOrder['locationId'],
       kind, item: item as EquipmentOrder['item'], channel, qty,
       paid: finite(order.paid, 'оплата заказа'),
@@ -338,6 +346,8 @@ export function validateGameState(value: unknown): GameState {
     earnedRevenue: bool(sourceMilestones.earnedRevenue, 'первая выручка'),
     experiencedThrottle: bool(sourceMilestones.experiencedThrottle, 'троттлинг'),
   }
+  const orderSeq = finite(game.orderSeq, 'счётчик заказов')
+  if (!Number.isSafeInteger(orderSeq)) throw new Error('Некорректный счётчик заказов.')
   return {
     ...(game.cityProperties !== undefined ? { cityProperties } : {}),
     cash: finite(game.cash, 'капитал', -Number.MAX_SAFE_INTEGER),
@@ -361,8 +371,8 @@ export function validateGameState(value: unknown): GameState {
     market: validateMarket(game.market),
     investors: validateInvestors(game.investors),
     dataLotSeq: finite(game.dataLotSeq, 'счётчик партий'),
-    orders: validateOrders(game.orders),
-    orderSeq: finite(game.orderSeq, 'счётчик заказов'),
+    orders: validateOrders(game.orders, [...locations, ...regionLocations], orderSeq),
+    orderSeq,
     ending: oneOf(game.ending, ['acquired'] as const, 'концовка'),
     acquisitionOffered: bool(game.acquisitionOffered, 'предложение о поглощении'),
     acquisitionDeclined: bool(game.acquisitionDeclined, 'отказ от поглощения'),
@@ -384,8 +394,8 @@ export function decodeSave(value: unknown): SaveEnvelope {
   game = {
     ...initial,
     ...game,
-    orders: Array.isArray(game.orders) ? game.orders : initial.orders,
-    orderSeq: typeof game.orderSeq === 'number' ? game.orderSeq : initial.orderSeq,
+    orders: game.orders === undefined ? initial.orders : game.orders,
+    orderSeq: game.orderSeq === undefined ? initial.orderSeq : game.orderSeq,
     model: { ...initial.model, ...(typeof game.model === 'object' && game.model !== null ? game.model : {}) },
     benchmark: { ...initial.benchmark, ...(typeof game.benchmark === 'object' && game.benchmark !== null ? game.benchmark : {}) },
     contracts: { ...initial.contracts, ...(typeof game.contracts === 'object' && game.contracts !== null ? game.contracts : {}) },

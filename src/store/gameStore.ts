@@ -1,11 +1,11 @@
 import { sellServerById, setServerOverclock, deployReserveServer } from '../systems/placement'
-import type { AnyLocationId, GridPosition } from '../systems/types'
+import type { AnyLocationId, GridPosition, ChassisId } from '../systems/types'
 import { create } from 'zustand'
 import { BALANCE_VERSION, TOKEN_PRICE_MAX, TOKEN_PRICE_MIN } from '../systems/config'
 import { advanceSimulation, buyLocation, createInitialGame, unlockRegion } from '../systems/simulation'
 import { buyCityTower, type CityTowerId } from '../systems/city'
 import { acceptAcquisition } from '../systems/market'
-import { mountChassisFromInventory, mountChipFromInventory, orderEquipment, type OrderRequest } from '../systems/procurement'
+import { mountChassisFromInventory, mountChipFromInventory, orderEquipment, orderServerKit, type OrderRequest } from '../systems/procurement'
 import { changeReputation } from '../systems/reputation'
 import { buyDataLot, startTraining } from '../systems/training'
 import { runBenchmark, togglePreparing } from '../systems/benchmark'
@@ -47,8 +47,9 @@ interface GameStore {
   openProcurement: (request: { locationId: AnyLocationId; position: GridPosition | null; serverId?: string | null }) => void
   closeProcurement: () => void
   orderEquipment: (request: OrderRequest) => void
+  orderKit: (request: Parameters<typeof orderServerKit>[1]) => void
   mountChip: (id: AnyLocationId, position: GridPosition, chip: ChipId) => void
-  mountChassis: (id: AnyLocationId, position?: GridPosition) => void
+  mountChassis: (id: AnyLocationId, position?: GridPosition, chassis?: ChassisId) => void
   tick: (seconds: number) => void
   togglePause: () => void
   setSpeed: (speed: GameSpeed) => void
@@ -143,15 +144,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     purchaseLocation: (id) => apply(buyLocation(get().game, id), `Локация приобретена. Закажите шасси в серверной комнате.`),
     openProcurement: (request) => set({ procurement: request }),
     closeProcurement: () => set({ procurement: null }),
-    orderEquipment: (request) => {
-      const result = orderEquipment(get().game, request)
-      if (result.ok) {
-        set({ game: result.state, procurement: null })
-        notify('Заказ оформлен: оплата списана, оборудование в пути.', 'success')
-      } else notify(result.error, 'error')
-    },
-    mountChip: (id, position, chip) => apply(mountChipFromInventory(get().game, id, position, chip), 'Чип смонтирован в стойку со склада.'),
-    mountChassis: (id, position) => apply(mountChassisFromInventory(get().game, id, position), 'Стойка установлена в ячейку со склада.'),
+    orderEquipment: (request) => apply(orderEquipment(get().game, request), 'Заказ оплачен. Оборудование в пути.'),
+    orderKit: (request) => apply(orderServerKit(get().game, request), 'Комплект оплачен. Шасси и чип в пути.'),
+    mountChip: (id, position, chip) => apply(mountChipFromInventory(get().game, id, position, chip)),
+    mountChassis: (id, position, chassis) => apply(mountChassisFromInventory(get().game, id, position, chassis)),
     tick: (seconds) => {
       const state = get()
       if (!state.ready) return

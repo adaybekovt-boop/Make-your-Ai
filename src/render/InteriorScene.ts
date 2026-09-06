@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { GridPosition, GridSize, InstalledServer } from '../systems/types'
+import type { ChassisRig, GridPosition, GridSize, InstalledServer } from '../systems/types'
 
 export interface CellProjection { row: number; col: number; x: number; y: number; size: number }
 export class InteriorScene {
@@ -74,11 +74,16 @@ export class InteriorScene {
   private box(x: number, y: number, z: number, w: number, h: number, d: number, color: string, parent: THREE.Object3D = this.scene) {
     const mesh = new THREE.Mesh(this.geometry, this.material(color)); mesh.position.set(x, y, z); mesh.scale.set(w, h, d); parent.add(mesh); return mesh
   }
-  update(servers: InstalledServer[], selected: GridPosition | null, efficiency: number) {
-    const signature = JSON.stringify([servers, selected, efficiency.toFixed(2)])
+  update(servers: InstalledServer[], selected: GridPosition | null, efficiency: number, rigs: ChassisRig[] = []) {
+    const signature = JSON.stringify([servers, rigs, selected, efficiency.toFixed(2)])
     if (this.disposed || signature === this.signature) return
     this.signature = signature
     this.equipment.clear()
+    for (const rig of rigs) {
+      const x = rig.gridPosition.col - (this.grid.cols - 1) / 2, z = rig.gridPosition.row - (this.grid.rows - 1) / 2
+      this.box(x, .08, z, .65, .10, .82, '#626d66', this.equipment)
+      for (const dx of [-.27, .27]) this.box(x + dx, .24, z, .06, .30, .78, '#81928b', this.equipment)
+    }
     for (const server of servers) {
       if (!server.gridPosition) continue
       const x = server.gridPosition.col - (this.grid.cols - 1) / 2, z = server.gridPosition.row - (this.grid.rows - 1) / 2

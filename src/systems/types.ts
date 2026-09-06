@@ -86,6 +86,8 @@ export interface ChassisRig {
 export interface LocationInventory {
   chips: Partial<Record<ChipId, number>>
   chassis: Partial<Record<ChassisId, number>>
+  greyChips?: Partial<Record<ChipId, number>>
+  greyChassis?: Partial<Record<ChassisId, number>>
 }
 
 export interface EquipmentOrder {

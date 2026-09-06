@@ -296,3 +296,13 @@ svg { flex-shrink: 0; vertical-align: middle; }
 /* The room stays full-screen; the inspector is temporary, never a reserved column. */
 .interior-toolbar{height:64px;padding:8px 22px;gap:20px}.interior-title h1{font-size:20px}.interior-workspace{position:relative;display:block;flex:1;min-height:0}.interior-floor{position:absolute;inset:0;height:100%;min-height:0}.interior-inspector{position:absolute;right:18px;top:18px;bottom:auto;max-height:calc(100% - 36px);width:280px;padding:20px;border:1px solid #65755d;border-radius:16px;box-shadow:0 12px 36px #0005;background:#222d29f5;z-index:5}.floor-legend{font-size:9px;bottom:12px;padding:7px 11px;opacity:.85}.floor-cell{background:transparent;box-shadow:none;border:1px solid #71807466}.floor-cell.filled{background:transparent;border:1px solid #acd18d;box-shadow:none}.floor-cell>svg{opacity:.4;color:#53694e}.floor-cell:hover>svg{opacity:1}.cell-coordinate{font-size:9px}.interior-inspector h3{font-size:12px;margin-top:16px}.interior-product .primary-button{min-height:35px;padding:8px 10px}.interior-inspector .card-note{font-size:10px}.upgrade-choice{display:flex;flex-wrap:wrap}
 @media(max-width:650px){.interior-toolbar{height:66px;display:flex;gap:9px;padding:8px}.interior-toolbar>.secondary-button{font-size:9px;padding:8px;min-height:32px}.interior-title span{display:none}.interior-title h1{font-size:15px}.occupancy{position:static;padding:0 7px;font-size:9px}.occupancy strong{font-size:13px;display:inline}.occupancy small{display:none}.interior-energy{font-size:9px;padding:0;min-width:0}.interior-workspace{display:block}.interior-floor{height:100%;min-height:0}.interior-inspector{width:240px;right:8px;top:8px;max-height:calc(100% - 16px);padding:16px}.floor-legend{display:none}}
+.procurement-flow { display: grid; gap: 14px; }
+.procurement-flow label { display: grid; gap: 7px; font-size: 13px; }
+.procurement-flow select, .procurement-flow input { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid #4b5854; border-radius: 8px; background: #252e2b; color: #edf2e9; font: inherit; }
+.procurement-flow p { margin: 0; }
+.procurement-flow section { border-top: 1px solid #48534b; padding-top: 10px; }
+.procurement-order { display: grid; gap: 4px; padding: 10px 0; }
+.procurement-order strong { color: #c9dda9; font-size: 13px; }
+.procurement-order small, .procurement-stock small { display: block; opacity: .65; font-size: 12px; }
+.procurement-stock { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+@media (max-width: 560px) { .procurement-stock { align-items: stretch; flex-direction: column; } }

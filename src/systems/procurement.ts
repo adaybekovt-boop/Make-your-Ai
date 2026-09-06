@@ -5,12 +5,12 @@ import {
   CHIPS,
   CHIP_DELIVERY_HOURS,
   CHANNEL_MULT,
-  EQUIPMENT_CLEANUP_RATIO,
   GREY_DEFECT_CHANCE,
   MAX_ORDER_QTY,
 } from './config'
-import { purchasesRestricted, pushNotice } from './market'
-import { firstFreeCell, gridSizeFor, isGridPosition, locationDefinition, normalizeLocation, serverOutput } from './serverGrid'
+import { purchasesRestricted } from './market'
+import { chargeEquipmentFailure, failEquipment } from './equipment'
+import { firstFreeCell, isGridPosition, locationDefinition, normalizeLocation, sameCell, serverOutput, withInstalledServers } from './serverGrid'
 import type {
   ActionResult,
   AnyLocationId,
@@ -20,12 +20,10 @@ import type {
   EquipmentOrder,
   GameState,
   GridPosition,
-  InstalledServer,
   LocationState,
   Rng,
 } from './types'
 
-type Working = LocationState & { gridSize: ReturnType<typeof gridSizeFor>; installedServers: InstalledServer[]; serverSeq: number }
 
 // ---------- Цены: канал закупки и опт ----------
 export function unitPrice(basePrice: number, channel: Channel): number {
@@ -56,27 +54,40 @@ function find(state: GameState, id: AnyLocationId): LocationState | undefined {
 
 function update(state: GameState, location: LocationState): GameState {
   const key = state.locations.some((item) => item.id === location.id) ? 'locations' : 'regionLocations'
-  return { ...state, [key]: state[key].map((item) => item.id === location.id ? location : item) }
+  const synced = location.installedServers ? withInstalledServers(location, location.installedServers) : location
+  return { ...state, [key]: state[key].map((item) => item.id === location.id ? synced : item) }
 }
 
 function inventoryOf(location: LocationState): NonNullable<LocationState['inventory']> {
   return location.inventory ?? { chips: {}, chassis: {} }
 }
 
-function addToInventory(location: LocationState, kind: 'chip' | 'chassis', item: ChipId | ChassisId, qty: number): LocationState {
+function addToInventory(location: LocationState, kind: 'chip' | 'chassis', item: ChipId | ChassisId, qty: number, channel: Channel = 'official'): LocationState {
   const inventory = inventoryOf(location)
-  if (kind === 'chip') {
-    const chips = { ...inventory.chips }
-    chips[item as ChipId] = (chips[item as ChipId] ?? 0) + qty
-    return { ...location, inventory: { chips, chassis: inventory.chassis } }
-  }
-  const chassis = { ...inventory.chassis }
-  chassis[item as ChassisId] = (chassis[item as ChassisId] ?? 0) + qty
-  return { ...location, inventory: { chips: inventory.chips, chassis } }
+  const key = kind === 'chip' ? 'chips' : 'chassis'
+  const greyKey = kind === 'chip' ? 'greyChips' : 'greyChassis'
+  const counts = inventory[key] as Record<string, number>
+  const grey = inventory[greyKey] as Record<string, number> | undefined
+  return { ...location, inventory: { ...inventory, [key]: { ...counts, [item]: (counts[item] ?? 0) + qty },
+    ...(channel === 'grey' ? { [greyKey]: { ...grey, [item]: (grey?.[item] ?? 0) + qty } } : {}) } }
+}
+
+/** Use verified/official stock first; retain the provenance of remaining units. */
+function takeStock(location: LocationState, kind: 'chip' | 'chassis', item: ChipId | ChassisId) {
+  const inventory = inventoryOf(location)
+  const key = kind === 'chip' ? 'chips' : 'chassis'
+  const greyKey = kind === 'chip' ? 'greyChips' : 'greyChassis'
+  const counts = { ...inventory[key] } as Record<string, number>
+  const grey = { ...inventory[greyKey] } as Record<string, number>
+  const isGrey = (counts[item] ?? 0) === (grey[item] ?? 0)
+  counts[item] -= 1
+  if (counts[item] === 0) delete counts[item]
+  if (isGrey) { grey[item] -= 1; if (grey[item] === 0) delete grey[item] }
+  return { location: { ...location, inventory: { ...inventory, [key]: counts, ...(inventory[greyKey] ? { [greyKey]: grey } : {}) } }, isGrey }
 }
 
 function cellBusy(location: LocationState, cell: GridPosition): boolean {
-  return location.installedServers.some((server) => server.gridPosition?.row === cell.row && server.gridPosition?.col === cell.col) ||
+  return (location.installedServers ?? []).some((server) => server.gridPosition?.row === cell.row && server.gridPosition?.col === cell.col) ||
     (location.rigs ?? []).some((rig) => rig.gridPosition.row === cell.row && rig.gridPosition.col === cell.col)
 }
 
@@ -97,6 +108,9 @@ export function orderEquipment(state: GameState, request: OrderRequest): ActionR
   const found = find(state, request.locationId)
   if (!found?.owned) return { ok: false, error: 'Сначала приобретите локацию.' }
   const { kind, item, channel } = request
+  if (channel !== 'official' && channel !== 'grey') return { ok: false, error: 'Неизвестный канал закупки.' }
+  if (kind !== 'chip' && kind !== 'chassis') return { ok: false, error: 'Неизвестный тип оборудования.' }
+  if (state.orders.length >= 198) return { ok: false, error: 'Слишком много заказов в пути.' }
   const qty = request.qty
   if (!Number.isInteger(qty) || qty < 1 || qty > MAX_ORDER_QTY) return { ok: false, error: `Заказ: от 1 до ${MAX_ORDER_QTY} единиц за раз.` }
   let basePrice: number
@@ -161,152 +175,77 @@ export function orderEquipment(state: GameState, request: OrderRequest): ActionR
   }
 }
 
-// ---------- Доставка ----------
-function deliverOne(state: GameState, order: EquipmentOrder, rng: Rng): { state: GameState; notices: string[] } {
-  const found = find(state, order.locationId)
-  if (!found) return { state, notices: [] }
-  let location = normalizeLocation(found) as Working
-  const notices: string[] = []
-  let remaining = order.qty
-  let failed = 0
-  const label = order.kind === 'chip' ? CHIPS[order.item as ChipId].name : CHASSIS[order.item as ChassisId].name
-
-  while (remaining > 0) {
-    remaining -= 1
-    // Серый импорт: шанс заводского брака проверяется на каждой единице при монтаже.
-    if (order.channel === 'grey' && rng() < GREY_DEFECT_CHANCE) {
-      failed += 1
-      continue
-    }
-    if (order.kind === 'chassis') {
-      let placed = false
-      const rigId = `rig-${order.id}-${order.qty - remaining}`
-      if (order.targetCell && !cellBusy(location, order.targetCell)) {
-        location = { ...location, rigs: [...(location.rigs ?? []), { id: rigId, chassis: order.item as ChassisId, gridPosition: { ...order.targetCell } }] }
-        placed = true
-      }
-      if (!placed) {
-        const free = firstFreeCell({ ...location, rigs: location.rigs ?? [], installedServers: location.installedServers })
-        if (free && !cellBusy(location, free)) {
-          location = { ...location, rigs: [...(location.rigs ?? []), { id: rigId, chassis: order.item as ChassisId, gridPosition: { ...free } }] }
-          placed = true
-        }
-      }
-      if (!placed) location = addToInventory(location, 'chassis', order.item as ChassisId, 1)
-      continue
-    }
-    const chip = order.item as ChipId
-    if (order.targetServerId) {
-      const server = location.installedServers.find((item) => item.id === order.targetServerId)
-      if (server) {
-        const chassis = server.chassis ?? 'rack-basic'
-        if (chassisSupports(chassis, chip) && CHIPS[chip].compute > CHIPS[server.chip].compute) {
-          location = {
-            ...location,
-            inventory: addToInventory({ ...location, inventory: inventoryOf(location) }, 'chip', server.chip, 1).inventory,
-            installedServers: location.installedServers.map((item) => item.id === server.id ? { ...item, chip, chassis, overclock: 1 } : item),
-          }
-          continue
-        }
-      }
-    }
-    let mounted = false
-    if (order.targetCell) {
-      const rig = (location.rigs ?? []).find((item) => item.gridPosition.row === order.targetCell!.row && item.gridPosition.col === order.targetCell!.col)
-      const busy = location.installedServers.some((server) => server.gridPosition?.row === order.targetCell!.row && server.gridPosition?.col === order.targetCell!.col)
-      if (rig && !busy && chassisSupports(rig.chassis, chip)) {
-        const sequence = location.serverSeq + 1
-        location = {
-          ...location,
-          serverSeq: sequence,
-          installedServers: [...location.installedServers, { id: `server-${sequence}`, chip, chassis: rig.chassis, overclock: 1, gridPosition: { ...rig.gridPosition } }],
-        }
-        mounted = true
-      }
-    }
-    if (!mounted) location = addToInventory(location, 'chip', chip, 1)
-  }
-
-  let next = update(state, location)
-  if (failed > 0) {
-    const cleanup = Math.round(EQUIPMENT_CLEANUP_RATIO * (order.kind === 'chip' ? CHIPS[order.item as ChipId].price : CHASSIS[order.item as ChassisId].price) * failed)
-    next = { ...next, cash: next.cash - cleanup, totalExpenses: next.totalExpenses + cleanup }
-    notices.push(`Брак серого импорта: ${failed} из ${order.qty} ед. «${label}» не прошли монтаж. Утилизация — ${cleanup}.`)
-  }
-  notices.push(`Доставка: «${label}» ×${order.qty - failed} поступило в локацию.`)
-  return { state: next, notices }
+/** Order a matching rack and chip together; either both are paid for or neither. */
+export function orderServerKit(state: GameState, request: { locationId: AnyLocationId; chassis: ChassisId; chip: ChipId; channel: Channel; qty: number; targetCell: GridPosition }): ActionResult {
+  if (!CHASSIS[request.chassis] || !CHIPS[request.chip] || !chassisSupports(request.chassis, request.chip)) return { ok: false, error: 'Чип не поддерживается стойкой.' }
+  const rack = orderEquipment(state, { ...request, kind: 'chassis', item: request.chassis })
+  if (!rack.ok) return rack
+  return orderEquipment(rack.state, { locationId: request.locationId, kind: 'chip', item: request.chip, channel: request.channel, qty: request.qty })
 }
 
-/** Часовая проверка доставки: оплата уже сделана при заказе, здесь только приход. */
-export function deliverOrders(state: GameState, rng: Rng): GameState {
+/** Delivery only adds stock. No installation, defect roll or second payment. */
+export function deliverOrders(state: GameState, _rng: Rng = Math.random): GameState {
   const due = state.orders.filter((order) => order.arriveAt <= state.elapsedGameHours)
-  if (due.length === 0) return state
+  if (!due.length) return state
   let next = state
-  const notices: string[] = []
   for (const order of due) {
-    const result = deliverOne(next, order, rng)
-    next = result.state
-    notices.push(...result.notices)
+    const location = find(next, order.locationId)
+    if (!location) continue
+    next = update(next, addToInventory(normalizeLocation(location), order.kind, order.item, order.qty, order.channel))
+    const label = order.kind === 'chip' ? CHIPS[order.item as ChipId].name : CHASSIS[order.item as ChassisId].name
+    next = { ...next, pendingNotices: [...next.pendingNotices, `Доставлено на склад: ${label} ×${order.qty}. Откройте ячейку для монтажа.`] }
   }
-  return {
-    ...next,
-    orders: next.orders.filter((order) => order.arriveAt > state.elapsedGameHours),
-    pendingNotices: [...next.pendingNotices, ...notices],
-  }
+  return { ...next, orders: next.orders.filter((order) => order.arriveAt > state.elapsedGameHours) }
 }
 
-// ---------- Монтаж со склада ----------
-export function mountChipFromInventory(state: GameState, locationId: AnyLocationId, position: GridPosition, chip: ChipId): ActionResult {
+function mountBlocked(state: GameState): string | null {
+  return state.ending ? 'Компания уже продана.' : null
+}
+
+export function mountChassisFromInventory(state: GameState, locationId: AnyLocationId, position?: GridPosition, selectedChassis?: ChassisId, rng: Rng = Math.random): ActionResult {
+  const restriction = mountBlocked(state)
+  if (restriction) return { ok: false, error: restriction }
   const found = find(state, locationId)
   if (!found?.owned) return { ok: false, error: 'Локация не принадлежит компании.' }
   const location = normalizeLocation(found)
-  const rig = (location.rigs ?? []).find((item) => item.gridPosition.row === position.row && item.gridPosition.col === position.col)
-  if (!rig) return { ok: false, error: 'В этой ячейке нет стойки.' }
-  if (location.installedServers.some((server) => server.gridPosition?.row === position.row && server.gridPosition?.col === position.col)) {
-    return { ok: false, error: 'В стойке уже стоит чип.' }
-  }
-  if (!chassisSupports(rig.chassis, chip)) return { ok: false, error: `Стойка «${CHASSIS[rig.chassis].name}» не поддерживает этот класс чипа.` }
-  const inventory = inventoryOf(location)
-  if ((inventory.chips[chip] ?? 0) < 1) return { ok: false, error: 'Такого чипа нет на складе локации.' }
-  const demand = location.installedServers.reduce((sum, server) => sum + (server.gridPosition ? serverOutput(server).powerKw : 0), 0) +
-    serverOutput({ chip, overclock: 1, chassis: rig.chassis }).powerKw
-  if (demand > locationDefinition(location.id).powerLimitKw + 1e-8) return { ok: false, error: 'Недостаточно мощности энергосети для этого чипа.' }
-  const chips = { ...inventory.chips }
-  chips[chip] = (chips[chip] ?? 0) - 1
-  if (chips[chip] === 0) delete chips[chip]
-  const sequence = location.serverSeq + 1
-  const next = {
-    ...location,
-    serverSeq: sequence,
-    inventory: { chips, chassis: inventory.chassis },
-    installedServers: [...location.installedServers, { id: `server-${sequence}`, chip, chassis: rig.chassis, overclock: 1, gridPosition: { ...position } }],
-  }
-  return { ok: true, state: update(state, next) }
-}
-
-export function mountChassisFromInventory(state: GameState, locationId: AnyLocationId, position?: GridPosition): ActionResult {
-  const found = find(state, locationId)
-  if (!found?.owned) return { ok: false, error: 'Локация не принадлежит компании.' }
-  const location = normalizeLocation(found)
-  const available = Object.entries(inventoryOf(location).chassis).find(([, count]) => (count ?? 0) > 0)
-  if (!available) return { ok: false, error: 'Шасси нет на складе локации.' }
-  const chassis = available[0] as ChassisId
-  const target = position ?? firstFreeCell({ ...location, rigs: location.rigs ?? [], installedServers: location.installedServers })
-  if (!target) return { ok: false, error: 'Все ячейки заняты. В помещении нет свободного места.' }
+  const chassis = selectedChassis ?? Object.keys(inventoryOf(location).chassis).find((key) => (inventoryOf(location).chassis[key as ChassisId] ?? 0) > 0) as ChassisId | undefined
+  if (!chassis || !CHASSIS[chassis] || (inventoryOf(location).chassis[chassis] ?? 0) < 1) return { ok: false, error: 'Такого шасси нет на складе локации.' }
+  const target = position ?? firstFreeCell(location)
+  if (!target) return { ok: false, error: 'Все ячейки заняты.' }
   if (!isGridPosition(target, location.gridSize)) return { ok: false, error: 'Ячейка за пределами помещения.' }
   if (cellBusy(location, target)) return { ok: false, error: 'В выбранной ячейке уже есть стойка.' }
-  const inventory = inventoryOf(location)
-  const chassisStock = { ...inventory.chassis }
-  chassisStock[chassis] = (chassisStock[chassis] ?? 0) - 1
-  if (chassisStock[chassis] === 0) delete chassisStock[chassis]
-  const next = {
-    ...location,
-    inventory: { chips: inventory.chips, chassis: chassisStock },
-    rigs: [...(location.rigs ?? []), { id: `rig-${location.serverSeq + 1}-${target.row}-${target.col}`, chassis, gridPosition: { ...target } }],
-  }
-  return { ok: true, state: update(state, next) }
+  const stock = takeStock(location, 'chassis', chassis)
+  if (stock.isGrey && rng() < GREY_DEFECT_CHANCE) return { ok: true, state: chargeEquipmentFailure(update(state, stock.location), CHASSIS[chassis], 'Брак серого импорта при монтаже шасси.') }
+  return { ok: true, state: update(state, { ...stock.location, rigs: [...(location.rigs ?? []), { id: `rig-${target.row}-${target.col}`, chassis, gridPosition: { ...target } }] }) }
 }
 
-export function pushDeliveryNotice(state: GameState, message: string): GameState {
-  return pushNotice(state, message)
+/** Mount a new chip or replace an installed chip; the existing rack is retained. */
+export function mountChipFromInventory(state: GameState, locationId: AnyLocationId, position: GridPosition, chip: ChipId, rng: Rng = Math.random): ActionResult {
+  const restriction = mountBlocked(state)
+  if (restriction) return { ok: false, error: restriction }
+  const found = find(state, locationId)
+  if (!found?.owned) return { ok: false, error: 'Локация не принадлежит компании.' }
+  const location = normalizeLocation(found)
+  if (!isGridPosition(position, location.gridSize)) return { ok: false, error: 'Ячейка за пределами помещения.' }
+  if (!CHIPS[chip]) return { ok: false, error: 'Неизвестный чип.' }
+  const previous = location.installedServers.find((server) => sameCell(server.gridPosition, position))
+  const rig = (location.rigs ?? []).find((item) => sameCell(item.gridPosition, position))
+  const chassis = previous?.chassis ?? rig?.chassis
+  if (!chassis) return { ok: false, error: 'В этой ячейке нет стойки.' }
+  if (!chassisSupports(chassis, chip)) return { ok: false, error: 'Стойка не поддерживает этот класс чипа.' }
+  if (previous && CHIPS[chip].compute <= CHIPS[previous.chip].compute) return { ok: false, error: 'Выберите более мощный чип.' }
+  if ((inventoryOf(location).chips[chip] ?? 0) < 1) return { ok: false, error: 'Такого чипа нет на складе локации.' }
+  const demand = location.installedServers.reduce((sum, server) => sum + (server.gridPosition && server.id !== previous?.id ? serverOutput(server).powerKw : 0), 0) + serverOutput({ chip, chassis, overclock: 1 }).powerKw
+  if (demand > locationDefinition(location.id).powerLimitKw + 1e-8) return { ok: false, error: 'Недостаточно мощности энергосети для этого чипа.' }
+  const stock = takeStock(location, 'chip', chip)
+  let nextLocation: LocationState = stock.location
+  if (previous) nextLocation = addToInventory(nextLocation, 'chip', previous.chip, 1)
+  const sequence = previous ? location.serverSeq : location.serverSeq + 1
+  const serverId = previous?.id ?? `server-${sequence}`
+  nextLocation = withInstalledServers({ ...nextLocation, rigs: (location.rigs ?? []).filter((item) => !sameCell(item.gridPosition, position)) },
+    [...location.installedServers.filter((item) => item.id !== previous?.id), { id: serverId, chip, chassis, overclock: 1, gridPosition: { ...position } }], sequence)
+  let next = update(state, nextLocation)
+  if (stock.isGrey && rng() < GREY_DEFECT_CHANCE) next = failEquipment(next, locationId, serverId, 'Брак серого импорта при монтаже.')
+  else next = { ...next, milestones: { ...next.milestones, installedServer: true } }
+  return { ok: true, state: next }
 }

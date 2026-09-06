@@ -19,6 +19,7 @@ import {
 } from './market'
 import { calculateCompanyEconomy } from './economy'
 import { dailyMoraleStep } from './team'
+import { dailyEquipmentFailures } from './equipment'
 import { dailyMalwareRoll } from './training'
 import type { GameState, Rng } from './types'
 
@@ -47,6 +48,7 @@ export function processDailySystems(state: GameState, rng: Rng): GameState {
   next = dailyCourtRoll(next, rng)
   next = dailyComplaintRoll(next, rng)
   next = dailyRandomEvent(next, rng)
+  next = dailyEquipmentFailures(next, rng)
 
   next = dailyMoraleStep(next, rng)
 
