@@ -22,7 +22,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git diff --exit-code ed1ac44007320052859aca921b103e22b981011c -- src public package.json package-lock.json tsconfig.json vite.config.ts index.html
           python3 - <<'PY'
-          import base64, hashlib, lzma, pathlib, shutil, subprocess
+          import base64, hashlib, lzma, pathlib, subprocess
           root = pathlib.Path('.github/portfolio-upload')
           encoded = ''.join((root / f'part{i}.b64').read_text() for i in range(4))
           patch = lzma.decompress(base64.b64decode(encoded, validate=True))
@@ -30,8 +30,6 @@ jobs:
           pathlib.Path('/tmp/portfolio.patch').write_bytes(patch)
           subprocess.run(['git','apply','--check','/tmp/portfolio.patch'],check=True)
           subprocess.run(['git','apply','/tmp/portfolio.patch'],check=True)
-          shutil.copyfile(root / 'final.yml', '.github/workflows/model-portfolio.yml')
-          shutil.rmtree(root)
           PY
       - name: Install locked dependencies
         run: npm ci
@@ -50,7 +48,7 @@ jobs:
           npm run build 2>&1 | tee artifacts/portfolio/build.log
       - name: Commit only verified sources to the isolated branch
         run: |
-          git add src docs .github
+          git add src docs
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: canonical model portfolio systems, save migration and fixed v1 balance'
           git push origin HEAD:feat/model-portfolio-systems
           git rev-parse HEAD > artifacts/portfolio/source-commit.txt
