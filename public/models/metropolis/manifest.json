@@ -1,0 +1,10 @@
+{
+  "source": "Metropolis.blend",
+  "rendered_buildings": 268,
+  "city_buildings_exported": 263,
+  "playable_buildings_provided_by_renderer": 5,
+  "interior_meshes_excluded": 2910,
+  "source_exterior_objects": 9842,
+  "batches": 72,
+  "glb_bytes": 1091744
+}
