@@ -1,0 +1,48 @@
+{
+  "sourceHashes": {
+    "simulation.ts": "037b35b95c52384ea7a7804ebb1a2fd19ca11fd8e68e40b9b3456be7d28ad50b",
+    "daily.ts": "a1965ab129978bcb5d941974b6188e5e4ab53c16ded54166b2ae134bd378eeb9"
+  },
+  "results": [
+    {
+      "seed": 1,
+      "training": false,
+      "sha256": "61a634e08cc11a04b066576ad2092dff89fa959a9685ddbb42dcdac0887f49fa"
+    },
+    {
+      "seed": 1,
+      "training": true,
+      "sha256": "a092a570c73dab42be76ffb12c7f86c798799b74f90604ab8205dd985bb30c98"
+    },
+    {
+      "seed": 2,
+      "training": false,
+      "sha256": "d1b0926782e608fafc5192b19e05100d3d76bfd2f664943256807fbe028fbf88"
+    },
+    {
+      "seed": 2,
+      "training": true,
+      "sha256": "849f08c71a89b0e36d0b62c536682501ef2f4122032b999ecd8cf4358105e4b1"
+    },
+    {
+      "seed": 17,
+      "training": false,
+      "sha256": "0518cb7f82def0d3e4fc2413eea454566477778d7816b843e8fa1c3389123027"
+    },
+    {
+      "seed": 17,
+      "training": true,
+      "sha256": "ca76daeb6a8d60693d298b165863e6621df3543f57b1c75479086cb51ae7bd51"
+    },
+    {
+      "seed": 81,
+      "training": false,
+      "sha256": "e1aaab40b11f676f2f859684d471f92c0d500219edb6af561fe202633597fcd1"
+    },
+    {
+      "seed": 81,
+      "training": true,
+      "sha256": "1b8cc927de103ce3729749b90d5d41eb2f2ebfcf10f050c61dce5ad1cf02ca87"
+    }
+  ]
+}

@@ -2,9 +2,13 @@ import { AD_DAILY_COST, BENCHMARK_COST, BENCHMARK_OFFLINE_HOURS, INSURANCE_DAILY
 import { adCostMultiplier } from '../systems/reputation'
 import { competitorRevealed, competitorGrowth } from '../systems/competitor'
 import { gameDay } from '../systems/market'
+import { benchmarkIsCurrent, effectiveProfile, getModel, modelIsOnline } from '../systems/models'
 import { useGameStore } from '../store/gameStore'
 import { money, percent } from './format'
 import { Icon } from './Icon'
+import { ModelTabs } from './ModelTabs'
+import { CompetenceReadout } from './CompetenceReadout'
+import { modelDisplayName } from './modelView'
 
 function Sparkline({ samples }: { samples: number[] }) {
   if (samples.length < 2) return <p className="card-note">Кривая конкурента появится после первых игровых дней.</p>
@@ -26,42 +30,50 @@ function Sparkline({ samples }: { samples: number[] }) {
 }
 
 export function TestingScreen({ onLeave }: { onLeave: () => void }) {
-  const game = useGameStore((state) => state.game)
+  const company = useGameStore((state) => state.company)
+  const selectedModelId = useGameStore((state) => state.selectedModelId)
   const ready = useGameStore((state) => state.ready)
-  const { benchmark, market, model } = game
-  const last = benchmark.last
-  const testing = benchmark.testing
+  const model = getModel(company, selectedModelId)
+  const game = useGameStore((state) => state.game)
+  const { market } = company.company
+  const last = model.benchmark.last
+  const testing = model.benchmark.testing
   const revealed = competitorRevealed(game)
   const today = gameDay(game)
+  const name = modelDisplayName(model)
+  const stale = last !== null && !benchmarkIsCurrent(model)
 
-  return <section className="screen" aria-label="Тестирование и рынок">
+  return <section className="screen" aria-label={`Тестирование и рынок · ${name}`}>
     <header className="screen-header">
       <div>
-        <span className="card-caption">Тестирование и рынок</span>
+        <span className="card-caption">Тестирование и рынок · {name}</span>
         <h2>GMI {last ? <strong className="text-green">{Math.round(last.total)}</strong> : <strong>—</strong>}</h2>
       </div>
       <div className="screen-status">
-        {model.iq <= 0 && <span className="status-pill warm">Сначала обучите модель</span>}
-        {testing && <span className="status-pill">Тест идёт: модель отключена от пользователей</span>}
-        {!testing && last?.exposed && <span className="status-pill warm">Результат прошлозит жульничеством</span>}
+        {model.state.iq <= 0 && !Object.values(effectiveProfile(model)).some((value) => value > 0) && <span className="status-pill warm">Сначала обучите {name}</span>}
+        {testing && <span className="status-pill">Тест идёт: {name} отключена от пользователей</span>}
+        {stale && <span className="status-pill warm">Прошлый тест устарел после смены квантования</span>}
+        {!testing && last?.exposed && <span className="status-pill warm">Результат запятнан жульничеством</span>}
       </div>
       <button className="secondary-button" onClick={onLeave}><Icon name="map" size={16} />К карте</button>
     </header>
+    <ModelTabs />
+    <CompetenceReadout model={model} compact />
 
     <div className="screen-columns">
       <div className="panel-section" data-testid="gmi-panel">
-        <h3>Тест Global Model Index</h3>
+        <h3>Тест Global Model Index · {name}</h3>
         <p className="card-note">
-          Тест стоит {money(BENCHMARK_COST)} и держит модель офлайн {BENCHMARK_OFFLINE_HOURS} ч: доход от пользователей в это время не идёт,
-          аренда и электричество — идут. Результат по четырём подкатегориям зависит от Model IQ {Math.round(model.iq)} с погрешностью ±10%.
+          Тест стоит {money(BENCHMARK_COST)} и держит {name} офлайн {BENCHMARK_OFFLINE_HOURS} ч: доход этой модели в это время не идёт,
+          аренда и электричество — идут. Результат зависит от заработанного IQ {Math.round(model.state.iq)} и купленного стартового GMI — это разные числа.
         </p>
         <button
           className="primary-button"
           data-testid="run-benchmark"
-          disabled={!ready || testing || model.iq <= 0 || model.offlineUntil !== null || game.cash < BENCHMARK_COST}
+          disabled={!ready || testing || !modelIsOnline(company, model) || company.company.cash < BENCHMARK_COST || (model.state.iq <= 0 && !Object.values(effectiveProfile(model)).some((value) => value > 0))}
           onClick={() => useGameStore.getState().runBenchmark()}
         >
-          Провести тестирование<span>{money(BENCHMARK_COST)}</span>
+          Провести тестирование {name}<span>{money(BENCHMARK_COST)}</span>
         </button>
 
         {last && <div className="gmi-results" data-testid="gmi-results">
@@ -69,9 +81,9 @@ export function TestingScreen({ onLeave }: { onLeave: () => void }) {
           <div><span>Coding</span><strong>{Math.round(last.coding)}</strong></div>
           <div><span>Safety</span><strong>{Math.round(last.safety)}</strong></div>
           <div><span>Multimodal</span><strong>{Math.round(last.multimodal)}</strong></div>
-          <div className="summary-total"><span>Итог · день {last.day}</span><strong>{Math.round(last.total)}</strong></div>
-          {last.cheated && !last.exposed && <p className="card-note text-warm">Этот результат завышен подготовкой. Пока правда не вскрылась.</p>}
-          {last.exposed && <p className="card-note text-warm">Жульничество в этом результате вскрыто: буст рекламы и доверие потеряны.</p>}
+          <div className="summary-total"><span>Итог · день {last.day}{stale ? ' · устарел' : ''}</span><strong>{Math.round(last.total)}</strong></div>
+          {last.cheated && !last.exposed && <p className="card-note text-warm">Этот результат «{name}» завышен подготовкой. Пока правда не вскрылась.</p>}
+          {last.exposed && <p className="card-note text-warm">Жульничество в результате «{name}» вскрыто: буст рекламы и доверие потеряны.</p>}
           {!last.cheated && last.total >= 75 && <p className="card-note text-green">Честный высокий балл: реклама работает на четверть лучше, открыты дорогие контракты.</p>}
         </div>}
 
@@ -79,11 +91,11 @@ export function TestingScreen({ onLeave }: { onLeave: () => void }) {
           <label className="toggle-label" data-testid="preparing-toggle">
             <input
               type="checkbox"
-              checked={benchmark.preparing}
+              checked={model.benchmark.preparing}
               disabled={!ready}
               onChange={() => useGameStore.getState().togglePreparing()}
             />
-            Подготовить к бенчмаркам: −20% дохода от пользователей сейчас, +30% к следующему тесту
+            Подготовить {name} к бенчмаркам: −20% дохода от пользователей сейчас, +30% к следующему тесту
           </label>
         </div>
         <p className="card-note">Так готовились и другие лаборатории. Часть из них вскрыли — с репутацией было хуже, чем если бы они не готовились. Точный шанс — не публикуется.</p>
@@ -91,13 +103,13 @@ export function TestingScreen({ onLeave }: { onLeave: () => void }) {
 
       <div className="panel-section">
         <h3>Конкурент</h3>
-        <Sparkline samples={game.competitor.samples} />
+        <Sparkline samples={company.company.competitor.samples} />
         <p className="card-note" data-testid="competitor-score">
           {revealed
-            ? `Балл конкурента: ${Math.round(game.competitor.score)} (точные данные разведки, ещё ${Math.ceil((game.competitor.revealedUntil! - game.elapsedGameHours))} ч).`
-            : `Балл конкурента: ≈${Math.round(game.competitor.score / 10) * 10} (оценка; разведка покажет точное число).`}
+            ? `Балл конкурента: ${Math.round(company.company.competitor.score)} (точные данные разведки, ещё ${Math.ceil((company.company.competitor.revealedUntil! - company.company.elapsedGameHours))} ч).`
+            : `Балл конкурента: ≈${Math.round(company.company.competitor.score / 10) * 10} (оценка; разведка покажет точное число).`}
         </p>
-        <button className="secondary-button" disabled={!ready || game.cash < 25_000} onClick={() => useGameStore.getState().attemptEspionage()}>Заказать разведку<span>{money(25_000)}</span></button>
+        <button className="secondary-button" disabled={!ready || company.company.cash < 25_000} onClick={() => useGameStore.getState().attemptEspionage()}>Заказать разведку<span>{money(25_000)}</span></button>
         <p className="card-note">Провал разведки ударит по репутации сильнее, чем отказ от попытки.</p>
 
         <h3>Реклама и цена токена</h3>
@@ -120,8 +132,8 @@ export function TestingScreen({ onLeave }: { onLeave: () => void }) {
 
         <h3>Репутация и страховка</h3>
         <div className="card-facts">
-          <span>Репутация<strong>{Math.round(game.reputation)} / 100</strong></span>
-          <span>Эффективность рекламы<strong>{percent(game.reputation / 100 / 2 + 0.5)}</strong></span>
+          <span>Репутация<strong>{Math.round(company.company.reputation)} / 100</strong></span>
+          <span>Эффективность рекламы<strong>{percent(company.company.reputation / 100 / 2 + 0.5)}</strong></span>
         </div>
         <div className="toggle-row">
           <label className="toggle-label">
@@ -131,22 +143,22 @@ export function TestingScreen({ onLeave }: { onLeave: () => void }) {
         </div>
 
         <h3>Заморский регион</h3>
-        {game.regions.includes('overseas') ? <>
+        {company.company.regions.includes('overseas') ? <>
           {REGIONS[0].locations.map((location) => {
-            const owned = game.regionLocations.find((item) => item.id === location.id)?.owned
+            const owned = company.company.regionLocations.find((item) => item.id === location.id)?.owned
             return owned
               ? <p className="card-note" key={location.id}>{location.name}: площадка ваша. Электричество здесь дороже на {percent(REGIONS[0].electricityMult - 1)}, а иски — чаще.</p>
               : <div className="chip-row" key={location.id}>
                 <Icon name="server" size={16} />
                 <div><strong>{location.name}</strong><span>{location.powerLimitKw} кВт · электричество ×{REGIONS[0].electricityMult}</span></div>
-                <button className="secondary-button" disabled={!ready || game.cash < location.price} onClick={() => useGameStore.getState().purchaseLocation(location.id)}>Купить<span>{money(location.price)}</span></button>
+                <button className="secondary-button" disabled={!ready || company.company.cash < location.price} onClick={() => useGameStore.getState().purchaseLocation(location.id)}>Купить<span>{money(location.price)}</span></button>
               </div>
           })}
         </> : <>
           <p className="card-note">{REGIONS[0].description}</p>
-          <button className="secondary-button" disabled={!ready || game.cash < REGIONS[0].unlockCost} onClick={() => useGameStore.getState().unlockRegion(REGIONS[0].id)}>Открыть регион<span>{money(REGIONS[0].unlockCost)}</span></button>
+          <button className="secondary-button" disabled={!ready || company.company.cash < REGIONS[0].unlockCost} onClick={() => useGameStore.getState().unlockRegion(REGIONS[0].id)}>Открыть регион<span>{money(REGIONS[0].unlockCost)}</span></button>
         </>}
-        <p className="card-note">Ориентир: соперник растёт на {percent(competitorGrowth(game, Math.random) / Math.max(game.competitor.score, 1))} в день. День {today}.</p>
+        <p className="card-note">Ориентир: соперник растёт на {percent(competitorGrowth(game, Math.random) / Math.max(company.company.competitor.score, 1))} в день. День {today}.</p>
       </div>
     </div>
   </section>

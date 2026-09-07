@@ -1,3 +1,4 @@
+import type { GmiProfile } from './models/types'
 import {
   BENCHMARK_COST,
   BENCHMARK_OFFLINE_HOURS,
@@ -10,7 +11,7 @@ import {
   GMI_NOISE,
 } from './config'
 import { changeReputation } from './reputation'
-import { gameDay, pushNotice } from './market'
+import { gameDay, isModelOnline, pushNotice } from './market'
 import type { ActionResult, GmiResult, GameState, Rng } from './types'
 
 export interface GmiScores {
@@ -22,12 +23,12 @@ export interface GmiScores {
 }
 
 /** Subcategory score: Model IQ times category weight, ±10% noise, optional cheat bonus. */
-export function gmiScores(iq: number, rng: Rng, bonusMult = 1): GmiScores {
+export function gmiScores(iq: number, rng: Rng, bonusMult = 1, profile?: GmiProfile): GmiScores {
   const scores: Record<string, number> = {}
   let sum = 0
   for (const category of GMI_CATEGORIES) {
     const noise = 1 + (rng() * 2 - 1) * GMI_NOISE
-    const score = Math.max(0, iq * category.weight * noise * bonusMult)
+    const score = Math.max(0, (profile ? profile[category.id] : iq * category.weight) * noise * bonusMult)
     scores[category.id] = score
     sum += score
   }
@@ -56,11 +57,11 @@ export function togglePreparing(state: GameState): ActionResult {
   }
 }
 
-export function runBenchmark(state: GameState, rng: Rng): ActionResult {
+export function runBenchmark(state: GameState, rng: Rng, profile?: GmiProfile): ActionResult {
   if (state.ending) return { ok: false, error: 'Компания уже продана.' }
-  if (state.model.iq <= 0) return { ok: false, error: 'Сначала обучите модель: Model IQ равен нулю.' }
+  if (state.model.iq <= 0 && (!profile || !Object.values(profile).some(value => value > 0))) return { ok: false, error: 'Сначала обучите модель: Model IQ равен нулю.' }
   if (state.benchmark.testing) return { ok: false, error: 'Тестирование уже идёт.' }
-  if (state.model.offlineUntil !== null) return { ok: false, error: 'Модель остановлена: тестирование недоступно.' }
+  if (!isModelOnline(state)) return { ok: false, error: 'Модель остановлена: тестирование недоступно.' }
   if (cheatBlockedByContract(state) && state.benchmark.preparing) {
     return { ok: false, error: 'Действует обязательство перед клиентом: без манипуляций с бенчмарками.' }
   }
@@ -68,7 +69,7 @@ export function runBenchmark(state: GameState, rng: Rng): ActionResult {
 
   const cheated = state.benchmark.preparing
   const bonusMult = cheated ? 1 + CHEAT_GMI_BONUS : 1
-  const scores = gmiScores(state.model.iq, rng, bonusMult)
+  const scores = gmiScores(state.model.iq, rng, bonusMult, profile)
   const last: GmiResult = { ...scores, cheated, exposed: false, day: gameDay(state) }
   const adBoostUntil = !cheated && scores.total >= GMI_BOOST_THRESHOLD
     ? state.elapsedGameHours + GMI_AD_BOOST_HOURS
