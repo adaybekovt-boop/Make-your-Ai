@@ -1,9 +1,10 @@
 name: Model portfolio systems
 on:
   push:
-    branches: [feat/model-portfolio-systems]
+    branches: [main, feat/model-portfolio-systems, cursor/model-portfolio-screens-792f]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
@@ -14,15 +15,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
-      - name: Install locked dependencies
-        run: npm ci
-      - name: Full regression suite
+      - name: Record and verify exact checkout
         run: |
           mkdir -p artifacts/portfolio
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git rev-parse HEAD > artifacts/portfolio/source-commit.txt
+          git log -1 --format=fuller > artifacts/portfolio/commit.txt
+          git ls-tree -r HEAD src > artifacts/portfolio/source-tree.txt
+          node -e 'const fs = require("node:fs"); fs.writeFileSync("artifacts/portfolio/checkout.json", JSON.stringify({sha: process.env.GITHUB_SHA, ref: process.env.GITHUB_REF, event: process.env.GITHUB_EVENT_NAME, runId: process.env.GITHUB_RUN_ID, runAttempt: process.env.GITHUB_RUN_ATTEMPT, node: process.version}, null, 2))'
+          npm --version > artifacts/portfolio/npm-version.txt
+      - name: Install locked dependencies
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee artifacts/portfolio/install.log
+      - name: Full regression suite
+        run: |
           set -o pipefail
           npm test 2>&1 | tee artifacts/portfolio/tests.log
       - name: Typecheck
@@ -35,15 +47,17 @@ jobs:
         run: |
           set -o pipefail
           npm run build 2>&1 | tee artifacts/portfolio/build.log
-      - name: Record tested revision
+      - name: Verify tests and build did not modify tracked sources
+        if: success() || failure()
+        run: git diff --exit-code HEAD -- src public package.json package-lock.json
+      - name: Archive architecture for this revision
         if: always()
         run: |
           mkdir -p artifacts/portfolio
-          git rev-parse HEAD > artifacts/portfolio/source-commit.txt
           cp docs/MODEL_ARCHITECTURE.md artifacts/portfolio/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: portfolio-${{ github.sha }}
+          name: portfolio-${{ github.sha }}-${{ github.event_name }}-${{ github.run_attempt }}
           path: artifacts/portfolio/
           retention-days: 14
